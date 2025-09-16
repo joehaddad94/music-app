@@ -4,11 +4,14 @@ A modern music application built with React Native and Expo, featuring a beautif
 
 ## Features
 
-- 🎵 Music discovery and exploration
-- 📱 Cross-platform support (iOS, Android, Web)
-- 🎨 Modern UI with adaptive theming
-- 📱 Native performance with Expo Router
-- 🔄 Real-time updates and smooth animations
+- 🎵 **Music Library**: Scan and access downloaded music files from your device
+- 🎮 **Music Player**: Full-featured audio player with play/pause, seek, and volume controls
+- 📱 **Cross-platform**: Works on iOS, Android, and Web
+- 🎨 **Modern UI**: Beautiful interface with adaptive theming (light/dark mode)
+- ⚡ **High Performance**: Optimized with memoization, lazy loading, and efficient rendering
+- 🔄 **Real-time Updates**: Smooth animations and responsive controls
+- 📋 **Playlists**: Organize your music with custom playlists
+- 🎛️ **Advanced Controls**: Repeat modes, shuffle, and progress tracking
 
 ## Prerequisites
 
@@ -49,6 +52,25 @@ This will start the Expo development server. You can then:
 - Press `i` to open on iOS simulator
 - Press `w` to open in web browser
 - Scan the QR code with Expo Go app on your phone
+
+## Using the Music App
+
+### First Launch
+1. **Grant Permissions**: The app will request access to your media library to scan for music files
+2. **Scan Music**: The app automatically scans your device for audio files (MP3, M4A, etc.)
+3. **Browse Library**: View all your music files in the Library tab
+
+### Music Player Features
+- **Play/Pause**: Tap any track to start playing
+- **Seek**: Drag the progress bar to jump to any position in the track
+- **Volume Control**: Adjust volume using the system volume controls
+- **Repeat Modes**: Cycle through no repeat, repeat all, and repeat one
+- **Shuffle**: Enable shuffle mode for random playback
+
+### Playlists
+- **Create Playlists**: Organize your music into custom playlists
+- **Quick Actions**: Shuffle all music or create new playlists
+- **Smart Playlists**: Pre-made playlists like "Recently Added" and "Favorites"
 
 ## Building APK for Android Installation
 
