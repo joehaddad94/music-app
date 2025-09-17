@@ -4,15 +4,26 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
+import LoadingScreen from '@/components/LoadingScreen';
 import { MusicProvider } from '@/contexts/MusicContext';
 import { useAppState } from '@/hooks/useAppState';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import React, { useState } from 'react';
 
 function AppContent() {
   const colorScheme = useColorScheme();
+  const [isLoading, setIsLoading] = useState(true);
   
   // Initialize app state handling for background audio
   useAppState();
+
+  const handleLoadingFinish = () => {
+    setIsLoading(false);
+  };
+
+  if (isLoading) {
+    return <LoadingScreen onFinish={handleLoadingFinish} />;
+  }
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
