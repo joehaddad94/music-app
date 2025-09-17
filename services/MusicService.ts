@@ -77,15 +77,23 @@ class MusicService {
       console.log(`Found ${audioAssets.length} audio files out of ${media.assets.length} total media files`);
 
       const tracks: MusicTrack[] = await Promise.all(
-        audioAssets.map(async (asset) => ({
-          id: asset.id,
-          title: asset.filename.replace(/\.[^/.]+$/, ''), // Remove file extension
-          artist: 'Unknown Artist',
-          album: 'Unknown Album',
-          duration: asset.duration || 0,
-          uri: asset.uri,
-          albumArt: asset.albumId ? await this.getAlbumArt(asset.albumId) : undefined,
-        }))
+        audioAssets.map(async (asset) => {
+          // Try to get duration from the asset, fallback to 0 if not available
+          let duration = 0;
+          if (asset.duration && asset.duration > 0) {
+            duration = asset.duration * 1000; // Convert seconds to milliseconds
+          }
+          
+          return {
+            id: asset.id,
+            title: asset.filename.replace(/\.[^/.]+$/, ''), // Remove file extension
+            artist: 'Unknown Artist',
+            album: 'Unknown Album',
+            duration: duration,
+            uri: asset.uri,
+            albumArt: asset.albumId ? await this.getAlbumArt(asset.albumId) : undefined,
+          };
+        })
       );
 
       return tracks;

@@ -55,15 +55,15 @@ export const Colors = {
     accent: '#FF9F0A', // iOS Orange Dark
     
     // UI elements
-    icon: '#8E8E93', // iOS Gray
+    icon: '#E0E0E0', // Much lighter gray for better visibility
     border: '#48484A', // Lighter dark border
     card: '#2C2C2E', // Lighter card background
     shadow: 'rgba(0, 0, 0, 0.3)',
     
     // Tab bar
-    tabIconDefault: '#8E8E93',
+    tabIconDefault: '#E0E0E0', // Much lighter gray for better visibility
     tabIconSelected: primaryDark,
-    tabBarBackground: '#1C1C1E',
+    tabBarBackground: '#2C2C2E',
     
     // Music specific
     playingIndicator: primaryDark,
