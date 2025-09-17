@@ -37,7 +37,8 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
       <TouchableOpacity
         style={[
           styles.trackItem,
-          isCurrentTrack && { backgroundColor: colors.tint + '20' }
+          { borderBottomColor: colors.border },
+          isCurrentTrack && { backgroundColor: colors.tint + '15' }
         ]}
         onPress={() => onTrackPress(item)}
         activeOpacity={0.7}
@@ -47,7 +48,7 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
             <IconSymbol
               size={40}
               name="music.note"
-              color={isCurrentTrack ? colors.tint : colors.text}
+              color={isCurrentTrack ? colors.playingIndicator : colors.icon}
             />
           </View>
           
@@ -57,7 +58,7 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
               numberOfLines={1}
               style={[
                 styles.trackTitle,
-                isCurrentTrack && { color: colors.tint }
+                isCurrentTrack && { color: colors.playingIndicator }
               ]}
             >
               {item.title}
@@ -89,7 +90,7 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
             <IconSymbol
               size={16}
               name="speaker.wave.2.fill"
-              color={colors.tint}
+              color={colors.playingIndicator}
               style={styles.playingIcon}
             />
           )}
@@ -177,7 +178,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    backgroundColor: 'transparent',
   },
   trackInfo: {
     flex: 1,

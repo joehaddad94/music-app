@@ -19,8 +19,8 @@ export default function LibraryScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ThemedView style={styles.header}>
-        <ThemedText type="title" style={styles.headerTitle}>
+      <ThemedView style={[styles.header, { borderBottomColor: colors.border }]}>
+        <ThemedText type="title" style={[styles.headerTitle, { color: colors.tint }]}>
           Music Library
         </ThemedText>
       </ThemedView>
@@ -30,7 +30,7 @@ export default function LibraryScreen() {
       </ThemedView>
       
       {playbackState.currentTrack && (
-        <ThemedView style={styles.playerContainer}>
+        <ThemedView style={[styles.playerContainer, { borderTopColor: colors.border }]}>
           <MusicPlayer />
         </ThemedView>
       )}
@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    backgroundColor: 'transparent',
   },
   headerTitle: {
     fontSize: 28,
@@ -62,6 +62,13 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });

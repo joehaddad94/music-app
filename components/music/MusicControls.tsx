@@ -30,11 +30,11 @@ const MusicControls: React.FC = memo(() => {
   };
 
   const getRepeatColor = () => {
-    return playbackState.repeatMode !== 'none' ? colors.tint : colors.text;
+    return playbackState.repeatMode !== 'none' ? colors.playingIndicator : colors.icon;
   };
 
   const getShuffleColor = () => {
-    return playbackState.shuffleMode ? colors.tint : colors.text;
+    return playbackState.shuffleMode ? colors.playingIndicator : colors.icon;
   };
 
   return (
@@ -62,7 +62,7 @@ const MusicControls: React.FC = memo(() => {
           <IconSymbol
             size={28}
             name="backward.fill"
-            color={colors.text}
+            color={colors.icon}
           />
         </TouchableOpacity>
 
@@ -88,7 +88,7 @@ const MusicControls: React.FC = memo(() => {
           <IconSymbol
             size={28}
             name="forward.fill"
-            color={colors.text}
+            color={colors.icon}
           />
         </TouchableOpacity>
 

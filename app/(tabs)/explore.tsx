@@ -42,16 +42,16 @@ export default function PlaylistsScreen() {
           {playlists.map((playlist) => (
             <TouchableOpacity
               key={playlist.id}
-              style={[styles.playlistItem, { borderBottomColor: colors.icon }]}
+              style={[styles.playlistItem, { borderBottomColor: colors.border }]}
               onPress={() => handlePlaylistPress(playlist)}
               activeOpacity={0.7}
             >
               <View style={styles.playlistInfo}>
-                <View style={[styles.playlistIcon, { backgroundColor: colors.tint + '20' }]}>
+                <View style={[styles.playlistIcon, { backgroundColor: colors.playingIndicator + '20' }]}>
                   <IconSymbol
                     size={24}
                     name={playlist.icon as any}
-                    color={colors.tint}
+                    color={colors.playingIndicator}
                   />
                 </View>
                 
@@ -117,7 +117,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
   },
   headerTitle: {
     fontSize: 28,

@@ -23,21 +23,21 @@ const MusicPlayer: React.FC = memo(() => {
   const { currentTrack } = playbackState;
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor: colors.background }]}>
+    <ThemedView style={[styles.container, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
       <View style={styles.trackInfo}>
         <View style={styles.albumArtContainer}>
           {currentTrack.albumArt ? (
             <IconSymbol 
               size={80} 
               name="music.note" 
-              color={colors.tint}
+              color={colors.playingIndicator}
               style={styles.albumArt}
             />
           ) : (
             <IconSymbol 
               size={80} 
               name="music.note" 
-              color={colors.tint}
+              color={colors.playingIndicator}
               style={styles.albumArt}
             />
           )}
@@ -71,7 +71,6 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
   },
   trackInfo: {
     flexDirection: 'row',

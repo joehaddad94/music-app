@@ -53,9 +53,9 @@ const ProgressBar: React.FC = memo(() => {
           value={isDragging ? undefined : currentPosition}
           onValueChange={handleValueChange}
           onSlidingComplete={handleSlidingComplete}
-          minimumTrackTintColor={colors.tint}
-          maximumTrackTintColor={colors.icon}
-          thumbTintColor={colors.tint}
+          minimumTrackTintColor={colors.progressBar}
+          maximumTrackTintColor={colors.progressBarBackground}
+          thumbTintColor={colors.progressBar}
         />
       </View>
     </ThemedView>

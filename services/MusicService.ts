@@ -2,6 +2,15 @@ import { Audio } from 'expo-av';
 import * as MediaLibrary from 'expo-media-library';
 import { MusicTrack, PlaybackState } from '../types/MusicTypes';
 
+// Configure audio for background playback
+Audio.setAudioModeAsync({
+  allowsRecordingIOS: false,
+  staysActiveInBackground: true,
+  playsInSilentModeIOS: true,
+  shouldDuckAndroid: true,
+  playThroughEarpieceAndroid: false,
+});
+
 class MusicService {
   private sound: Audio.Sound | null = null;
   private playbackState: PlaybackState = {
