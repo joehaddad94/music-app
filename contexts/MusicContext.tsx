@@ -1,5 +1,6 @@
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
-import { musicService, MusicTrack, PlaybackState } from '../services/MusicService';
+import { musicService } from '../services/MusicService';
+import { MusicTrack, PlaybackState } from '../types/MusicTypes';
 
 interface MusicContextType {
   tracks: MusicTrack[];

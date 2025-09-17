@@ -1,25 +1,6 @@
 import { Audio } from 'expo-av';
 import * as MediaLibrary from 'expo-media-library';
-
-export interface MusicTrack {
-  id: string;
-  title: string;
-  artist: string;
-  album?: string;
-  duration: number;
-  uri: string;
-  albumArt?: string;
-}
-
-export interface PlaybackState {
-  isPlaying: boolean;
-  currentTrack: MusicTrack | null;
-  position: number;
-  duration: number;
-  volume: number;
-  repeatMode: 'none' | 'one' | 'all';
-  shuffleMode: boolean;
-}
+import { MusicTrack, PlaybackState } from '../types/MusicTypes';
 
 class MusicService {
   private sound: Audio.Sound | null = null;

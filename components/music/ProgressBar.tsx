@@ -1,44 +1,44 @@
 import Slider from '@react-native-community/slider';
-import React, { memo, useState } from 'react';
+import React, { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
-import { useMusic } from '../../contexts/MusicContext';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { useMusicPlayer } from '../../hooks/useMusicPlayer';
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 
 const ProgressBar: React.FC = memo(() => {
-  const { playbackState, seekTo } = useMusic();
+  const { 
+    playbackState, 
+    isDragging, 
+    localPosition, 
+    handleSeek, 
+    handleSeekStart, 
+    handleSeekEnd, 
+    formatTime 
+  } = useMusicPlayer();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  const [isDragging, setIsDragging] = useState(false);
-
-  const formatTime = (milliseconds: number): string => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
 
   const handleValueChange = (value: number) => {
-    setIsDragging(true);
+    handleSeekStart();
   };
 
   const handleSlidingComplete = async (value: number) => {
-    setIsDragging(false);
     const newPosition = value * playbackState.duration;
-    await seekTo(newPosition);
+    handleSeek(newPosition);
+    handleSeekEnd();
   };
 
   const currentPosition = playbackState.duration > 0 
-    ? playbackState.position / playbackState.duration 
+    ? (isDragging ? localPosition : playbackState.position) / playbackState.duration 
     : 0;
 
   return (
     <ThemedView style={styles.container}>
       <View style={styles.timeContainer}>
         <ThemedText type="defaultSemiBold" style={styles.timeText}>
-          {formatTime(playbackState.position)}
+          {formatTime(isDragging ? localPosition : playbackState.position)}
         </ThemedText>
         <ThemedText type="defaultSemiBold" style={styles.timeText}>
           {formatTime(playbackState.duration)}

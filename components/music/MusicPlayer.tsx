@@ -1,8 +1,8 @@
 import React, { memo } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
-import { useMusic } from '../../contexts/MusicContext';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { useMusicPlayerDisplay } from '../../hooks/useMusicPlayerDisplay';
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 import { IconSymbol } from '../ui/IconSymbol';
@@ -12,11 +12,11 @@ import ProgressBar from './ProgressBar';
 const { width } = Dimensions.get('window');
 
 const MusicPlayer: React.FC = memo(() => {
-  const { playbackState } = useMusic();
+  const { playbackState, shouldShowPlayer } = useMusicPlayerDisplay();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  if (!playbackState.currentTrack) {
+  if (!shouldShowPlayer || !playbackState.currentTrack) {
     return null;
   }
 

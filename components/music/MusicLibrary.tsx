@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import React, { memo, useCallback } from 'react';
 import {
   ActivityIndicator,
@@ -9,9 +8,10 @@ import {
   View
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
-import { useMusic } from '../../contexts/MusicContext';
 import { useColorScheme } from '../../hooks/useColorScheme';
-import { MusicTrack } from '../../services/MusicService';
+import { useMusicLibrary } from '../../hooks/useMusicLibrary';
+import { MusicTrack } from '../../types/MusicTypes';
+import { formatDuration } from '../../utils/musicUtils';
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 import { IconSymbol } from '../ui/IconSymbol';
@@ -21,23 +21,14 @@ interface MusicLibraryProps {
 }
 
 const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
-  const { tracks, playbackState, isLoading, loadTracks, playTrack } = useMusic();
+  const { tracks, playbackState, isLoading, handleTrackPress, handleRefresh } = useMusicLibrary();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  const handleTrackPress = useCallback(async (track: MusicTrack) => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await playTrack(track);
-      onTrackSelect?.(track);
-    } catch (error) {
-      console.error('Failed to play track:', error);
-    }
-  }, [playTrack, onTrackSelect]);
-
-  const handleRefresh = useCallback(async () => {
-    await loadTracks();
-  }, [loadTracks]);
+  const onTrackPress = useCallback((track: MusicTrack) => {
+    handleTrackPress(track);
+    onTrackSelect?.(track);
+  }, [handleTrackPress, onTrackSelect]);
 
   const renderTrackItem = useCallback(({ item }: { item: MusicTrack }) => {
     const isCurrentTrack = playbackState.currentTrack?.id === item.id;
@@ -48,7 +39,7 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
           styles.trackItem,
           isCurrentTrack && { backgroundColor: colors.tint + '20' }
         ]}
-        onPress={() => handleTrackPress(item)}
+        onPress={() => onTrackPress(item)}
         activeOpacity={0.7}
       >
         <View style={styles.trackInfo}>
@@ -105,14 +96,8 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
         </View>
       </TouchableOpacity>
     );
-  }, [handleTrackPress, playbackState, colors]);
+  }, [onTrackPress, playbackState, colors]);
 
-  const formatDuration = (milliseconds: number): string => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
 
   const keyExtractor = useCallback((item: MusicTrack) => item.id, []);
 
@@ -136,9 +121,6 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
         </ThemedText>
         <ThemedText type="default" style={styles.emptySubtitle}>
           Make sure you have music files (.mp3, .mp4, .m4a, etc.) on your device and grant the necessary permissions.
-        </ThemedText>
-        <ThemedText type="default" style={styles.emptySubtitle}>
-          Note: Expo Go has limited media library access. For full functionality, create a development build.
         </ThemedText>
         <TouchableOpacity
           style={[styles.refreshButton, { backgroundColor: colors.tint }]}

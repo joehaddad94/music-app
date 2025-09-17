@@ -1,42 +1,22 @@
-import * as Haptics from 'expo-haptics';
 import React, { memo } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
-import { useMusic } from '../../contexts/MusicContext';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { useMusicControls } from '../../hooks/useMusicControls';
 import { ThemedView } from '../ThemedView';
 import { IconSymbol } from '../ui/IconSymbol';
 
 const MusicControls: React.FC = memo(() => {
-  const { playbackState, play, pause, setRepeatMode, setShuffleMode } = useMusic();
+  const { 
+    playbackState, 
+    handlePlayPause, 
+    handlePrevious, 
+    handleNext, 
+    handleRepeat, 
+    handleShuffle 
+  } = useMusicControls();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-
-  const handlePlayPause = async () => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      if (playbackState.isPlaying) {
-        await pause();
-      } else {
-        await play();
-      }
-    } catch (error) {
-      console.error('Play/pause error:', error);
-    }
-  };
-
-  const handleRepeat = () => {
-    const modes: ('none' | 'one' | 'all')[] = ['none', 'all', 'one'];
-    const currentIndex = modes.indexOf(playbackState.repeatMode);
-    const nextMode = modes[(currentIndex + 1) % modes.length];
-    setRepeatMode(nextMode);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const handleShuffle = () => {
-    setShuffleMode(!playbackState.shuffleMode);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
 
   const getRepeatIcon = () => {
     switch (playbackState.repeatMode) {
@@ -76,10 +56,7 @@ const MusicControls: React.FC = memo(() => {
         {/* Previous Button */}
         <TouchableOpacity
           style={styles.controlButton}
-          onPress={() => {
-            // TODO: Implement previous track functionality
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
+          onPress={handlePrevious}
           activeOpacity={0.7}
         >
           <IconSymbol
@@ -105,10 +82,7 @@ const MusicControls: React.FC = memo(() => {
         {/* Next Button */}
         <TouchableOpacity
           style={styles.controlButton}
-          onPress={() => {
-            // TODO: Implement next track functionality
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
+          onPress={handleNext}
           activeOpacity={0.7}
         >
           <IconSymbol
