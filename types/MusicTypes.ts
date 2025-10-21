@@ -16,6 +16,9 @@ export interface PlaybackState {
   volume: number;
   repeatMode: 'none' | 'one' | 'all';
   shuffleMode: boolean;
+  queue: MusicTrack[];
+  currentIndex: number;
+  originalQueue: MusicTrack[]; // For shuffle mode
 }
 
 export interface Playlist {

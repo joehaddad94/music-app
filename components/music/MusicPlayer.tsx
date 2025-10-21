@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { Dimensions, Image, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import { useMusicPlayerDisplay } from '../../hooks/useMusicPlayerDisplay';
@@ -15,6 +16,7 @@ const MusicPlayer: React.FC = memo(() => {
   const { playbackState, shouldShowPlayer } = useMusicPlayerDisplay();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   if (!shouldShowPlayer || !playbackState.currentTrack) {
     return null;
@@ -23,26 +25,31 @@ const MusicPlayer: React.FC = memo(() => {
   const { currentTrack } = playbackState;
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+    <ThemedView style={[
+      styles.container,
+      {
+        backgroundColor: colors.card,
+        borderTopColor: colors.border,
+        paddingBottom: Math.max(insets.bottom, 10), // Ensure it's above bottom notch
+      }
+    ]}>
       <View style={styles.trackInfo}>
-        <View style={styles.albumArtContainer}>
+        <View style={[styles.albumArtContainer, { backgroundColor: colors.tint + '20' }]}>
           {currentTrack.albumArt ? (
-            <IconSymbol 
-              size={80} 
-              name="music.note" 
-              color={colors.playingIndicator}
+            <Image
+              source={{ uri: currentTrack.albumArt }}
               style={styles.albumArt}
+              resizeMode="cover"
             />
           ) : (
-            <IconSymbol 
-              size={80} 
-              name="music.note" 
+            <IconSymbol
+              size={48}
+              name="music.note"
               color={colors.playingIndicator}
-              style={styles.albumArt}
             />
           )}
         </View>
-        
+
         <View style={styles.trackDetails}>
           <ThemedText type="subtitle" numberOfLines={1} style={styles.title}>
             {currentTrack.title}
@@ -78,12 +85,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   albumArtContainer: {
+    width: 80,
+    height: 80,
     marginRight: 15,
     borderRadius: 8,
     overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   albumArt: {
-    borderRadius: 8,
+    width: 80,
+    height: 80,
   },
   trackDetails: {
     flex: 1,

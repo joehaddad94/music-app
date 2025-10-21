@@ -8,14 +8,16 @@ interface MusicContextType {
   isLoading: boolean;
   error: string | null;
   loadTracks: () => Promise<void>;
-  playTrack: (track: MusicTrack) => Promise<void>;
+  playTrack: (track: MusicTrack, tracksQueue?: MusicTrack[]) => Promise<void>;
   play: () => Promise<void>;
   pause: () => Promise<void>;
   stop: () => Promise<void>;
   seekTo: (position: number) => Promise<void>;
   setVolume: (volume: number) => Promise<void>;
   setRepeatMode: (mode: 'none' | 'one' | 'all') => void;
-  setShuffleMode: (enabled: boolean) => void;
+  toggleShuffle: () => void;
+  playNext: () => Promise<void>;
+  playPrevious: () => Promise<void>;
 }
 
 const MusicContext = createContext<MusicContextType | undefined>(undefined);
@@ -34,6 +36,9 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
     volume: 1.0,
     repeatMode: 'none',
     shuffleMode: false,
+    queue: [],
+    currentIndex: -1,
+    originalQueue: [],
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,14 +68,21 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
     }
   }, []);
 
-  const playTrack = useCallback(async (track: MusicTrack) => {
+  const playTrack = useCallback(async (track: MusicTrack, tracksQueue?: MusicTrack[]) => {
     try {
+      // If a queue is provided, use it; otherwise use all tracks
+      const queue = tracksQueue || tracks;
+      const trackIndex = queue.findIndex(t => t.id === track.id);
+
+      // Set up the queue
+      musicService.setQueue(queue, trackIndex >= 0 ? trackIndex : 0);
+
       await musicService.loadTrack(track);
       await musicService.play();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to play track');
     }
-  }, []);
+  }, [tracks]);
 
   const play = async () => {
     try {
@@ -113,11 +125,27 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
   };
 
   const setRepeatMode = (mode: 'none' | 'one' | 'all') => {
-    setPlaybackState(prev => ({ ...prev, repeatMode: mode }));
+    musicService.setRepeatMode(mode);
   };
 
-  const setShuffleMode = (enabled: boolean) => {
-    setPlaybackState(prev => ({ ...prev, shuffleMode: enabled }));
+  const toggleShuffle = () => {
+    musicService.toggleShuffle();
+  };
+
+  const playNext = async () => {
+    try {
+      await musicService.playNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to play next track');
+    }
+  };
+
+  const playPrevious = async () => {
+    try {
+      await musicService.playPrevious();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to play previous track');
+    }
   };
 
   const value: MusicContextType = {
@@ -133,7 +161,9 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
     seekTo,
     setVolume,
     setRepeatMode,
-    setShuffleMode,
+    toggleShuffle,
+    playNext,
+    playPrevious,
   };
 
   return (

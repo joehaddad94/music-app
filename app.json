@@ -49,6 +49,15 @@
         {
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": false,
+          "savePhotosPermission": false,
+          "isAccessMediaLocationEnabled": true,
+          "androidPermissions": ["READ_MEDIA_AUDIO", "READ_EXTERNAL_STORAGE"]
+        }
       ]
     ],
     "experiments": {

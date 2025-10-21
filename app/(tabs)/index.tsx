@@ -6,7 +6,8 @@ import { Colors } from '@/constants/Colors';
 import { useMusic } from '@/contexts/MusicContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import React, { useEffect } from 'react';
-import { SafeAreaView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LibraryScreen() {
   const { loadTracks, playbackState } = useMusic();
@@ -18,19 +19,22 @@ export default function LibraryScreen() {
   }, [loadTracks]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ThemedView style={[styles.header, { borderBottomColor: colors.border }]}>
         <ThemedText type="title" style={[styles.headerTitle, { color: colors.tint }]}>
           Music Library
         </ThemedText>
       </ThemedView>
-      
+
       <ThemedView style={styles.content}>
-        <MusicLibrary />
+        <MusicLibrary hasPlayer={!!playbackState.currentTrack} />
       </ThemedView>
-      
+
       {playbackState.currentTrack && (
-        <ThemedView style={[styles.playerContainer, { borderTopColor: colors.border }]}>
+        <ThemedView style={[styles.playerContainer, {
+          borderTopColor: colors.border,
+          backgroundColor: colorScheme === 'dark' ? colors.background : 'rgba(255,255,255,0.98)'
+        }]}>
           <MusicPlayer />
         </ThemedView>
       )}

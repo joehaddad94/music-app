@@ -2,6 +2,7 @@ import React, { memo, useCallback } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   RefreshControl,
   StyleSheet,
   TouchableOpacity,
@@ -18,9 +19,10 @@ import { IconSymbol } from '../ui/IconSymbol';
 
 interface MusicLibraryProps {
   onTrackSelect?: (track: MusicTrack) => void;
+  hasPlayer?: boolean;
 }
 
-const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
+const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect, hasPlayer }) => {
   const { tracks, playbackState, isLoading, handleTrackPress, handleRefresh } = useMusicLibrary();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -44,14 +46,22 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
         activeOpacity={0.7}
       >
         <View style={styles.trackInfo}>
-          <View style={styles.albumArtContainer}>
-            <IconSymbol
-              size={40}
-              name="music.note"
-              color={isCurrentTrack ? colors.playingIndicator : colors.icon}
-            />
+          <View style={[styles.albumArtContainer, { backgroundColor: colors.tint + '15' }]}>
+            {item.albumArt ? (
+              <Image
+                source={{ uri: item.albumArt }}
+                style={styles.albumArtImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <IconSymbol
+                size={28}
+                name="music.note"
+                color={isCurrentTrack ? colors.playingIndicator : colors.icon}
+              />
+            )}
           </View>
-          
+
           <View style={styles.trackDetails}>
             <ThemedText 
               type="defaultSemiBold" 
@@ -148,7 +158,10 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect }) => {
           />
         }
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={[
+          styles.listContainer,
+          hasPlayer && { paddingBottom: 240 } // Add padding when player is visible
+        ]}
         getItemLayout={(data, index) => ({
           length: 80,
           offset: 80 * index,
@@ -186,9 +199,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   albumArtContainer: {
+    width: 50,
+    height: 50,
     marginRight: 12,
-    borderRadius: 4,
+    borderRadius: 6,
     overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  albumArtImage: {
+    width: 50,
+    height: 50,
   },
   trackDetails: {
     flex: 1,
