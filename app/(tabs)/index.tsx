@@ -1,3 +1,4 @@
+import ErrorBanner from '@/components/music/ErrorBanner';
 import MusicLibrary from '@/components/music/MusicLibrary';
 import MusicPlayer from '@/components/music/MusicPlayer';
 import { ThemedText } from '@/components/ThemedText';
@@ -25,6 +26,8 @@ export default function LibraryScreen() {
           Music Library
         </ThemedText>
       </ThemedView>
+
+      <ErrorBanner />
 
       <ThemedView style={styles.content}>
         <MusicLibrary hasPlayer={!!playbackState.currentTrack} />
