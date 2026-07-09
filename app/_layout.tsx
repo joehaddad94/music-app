@@ -7,7 +7,6 @@ import 'react-native-reanimated';
 import LoadingScreen from '@/components/LoadingScreen';
 import { LibraryProvider } from '@/contexts/LibraryContext';
 import { MusicProvider, useMusic } from '@/contexts/MusicContext';
-import { useAppState } from '@/hooks/useAppState';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import React, { useEffect, useState } from 'react';
 
@@ -21,9 +20,6 @@ function AppContent() {
   const { loadTracks } = useMusic();
   const [scanDone, setScanDone] = useState(false);
   const [minTimePassed, setMinTimePassed] = useState(false);
-
-  // Initialize app state handling for background audio
-  useAppState();
 
   useEffect(() => {
     loadTracks().finally(() => setScanDone(true));

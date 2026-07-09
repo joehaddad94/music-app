@@ -6,7 +6,7 @@ import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 import { IconSymbol } from './ui/IconSymbol';
 
-export const LoadingScreen: React.FC = () => {
+const LoadingScreen: React.FC = () => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const fadeAnim = useRef(new Animated.Value(0)).current;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useMusic, usePlaybackProgress } from '../contexts/MusicContext';
+import { formatDuration } from '../utils/musicUtils';
 
 export const useMusicPlayer = () => {
   const { seekTo, setVolume } = useMusic();
@@ -31,15 +32,7 @@ export const useMusicPlayer = () => {
     setVolume(volume);
   }, [setVolume]);
 
-  const formatTime = useCallback((milliseconds: number): string => {
-    if (milliseconds === 0 || !milliseconds) {
-      return '0:00';
-    }
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  }, []);
+  const formatTime = useCallback((milliseconds: number): string => formatDuration(milliseconds), []);
 
   return {
     position,
