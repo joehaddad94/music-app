@@ -35,6 +35,7 @@ export const useMusicLibrary = () => {
 
   return {
     tracks: filteredTracks,
+    totalTracks: tracks.length,
     playbackState,
     isLoading,
     searchQuery,

@@ -16,6 +16,9 @@ import { formatDuration } from '../../utils/musicUtils';
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 import { IconSymbol } from '../ui/IconSymbol';
+import SearchBar from './SearchBar';
+
+const TRACK_ITEM_HEIGHT = 74;
 
 interface MusicLibraryProps {
   onTrackSelect?: (track: MusicTrack) => void;
@@ -23,7 +26,16 @@ interface MusicLibraryProps {
 }
 
 const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect, hasPlayer }) => {
-  const { tracks, playbackState, isLoading, handleTrackPress, handleRefresh } = useMusicLibrary();
+  const {
+    tracks,
+    totalTracks,
+    playbackState,
+    isLoading,
+    searchQuery,
+    setSearchQuery,
+    handleTrackPress,
+    handleRefresh,
+  } = useMusicLibrary();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
@@ -112,7 +124,7 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect, hasPlay
 
   const keyExtractor = useCallback((item: MusicTrack) => item.id, []);
 
-  if (isLoading && tracks.length === 0) {
+  if (isLoading && totalTracks === 0) {
     return (
       <ThemedView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.tint} />
@@ -123,7 +135,7 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect, hasPlay
     );
   }
 
-  if (tracks.length === 0) {
+  if (totalTracks === 0) {
     return (
       <ThemedView style={styles.emptyContainer}>
         <IconSymbol size={64} name="music.note" color={colors.text} />
@@ -145,10 +157,21 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect, hasPlay
 
   return (
     <ThemedView style={styles.container}>
+      <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
       <FlatList
         data={tracks}
         renderItem={renderTrackItem}
         keyExtractor={keyExtractor}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        ListEmptyComponent={
+          <ThemedView style={styles.noResultsContainer}>
+            <IconSymbol size={40} name="magnifyingglass" color={colors.icon} />
+            <ThemedText type="default" style={styles.noResultsText}>
+              No matches for “{searchQuery.trim()}”
+            </ThemedText>
+          </ThemedView>
+        }
         refreshControl={
           <RefreshControl
             refreshing={isLoading}
@@ -163,14 +186,14 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect, hasPlay
           hasPlayer && { paddingBottom: 240 } // Add padding when player is visible
         ]}
         getItemLayout={(data, index) => ({
-          length: 80,
-          offset: 80 * index,
+          length: TRACK_ITEM_HEIGHT,
+          offset: TRACK_ITEM_HEIGHT * index,
           index,
         })}
         removeClippedSubviews={true}
         maxToRenderPerBatch={10}
         windowSize={10}
-        initialNumToRender={10}
+        initialNumToRender={12}
       />
     </ThemedView>
   );
@@ -188,8 +211,8 @@ const styles = StyleSheet.create({
   trackItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    height: TRACK_ITEM_HEIGHT,
     paddingHorizontal: 16,
-    paddingVertical: 12,
     borderBottomWidth: 1,
     backgroundColor: 'transparent',
   },
@@ -239,6 +262,17 @@ const styles = StyleSheet.create({
   },
   playingIcon: {
     marginTop: 4,
+  },
+  noResultsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+    paddingHorizontal: 40,
+  },
+  noResultsText: {
+    marginTop: 12,
+    opacity: 0.7,
+    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,
