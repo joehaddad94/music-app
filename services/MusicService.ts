@@ -168,25 +168,18 @@ class MusicService {
         return this.getMockMusicData();
       }
 
-      const tracks: MusicTrack[] = await Promise.all(
-        audioAssets.map(async (asset) => {
-          // Try to get duration from the asset, fallback to 0 if not available
-          let duration = 0;
-          if (asset.duration && asset.duration > 0) {
-            duration = asset.duration * 1000; // Convert seconds to milliseconds
-          }
-
-          return {
-            id: asset.id,
-            title: asset.filename.replace(/\.[^/.]+$/, ''), // Remove file extension
-            artist: 'Unknown Artist',
-            album: 'Unknown Album',
-            duration: duration,
-            uri: asset.uri,
-            albumArt: asset.albumId ? await this.getAlbumArt(asset.albumId) : undefined,
-          };
-        })
-      );
+      // Build tracks synchronously. We deliberately do NOT fetch album art
+      // per-track here: it previously issued one MediaLibrary query per file
+      // (thousands on a large library) and queried the photo album bucket,
+      // which never matches audio anyway. The UI falls back to a note icon.
+      const tracks: MusicTrack[] = audioAssets.map((asset) => ({
+        id: asset.id,
+        title: asset.filename.replace(/\.[^/.]+$/, ''), // Remove file extension
+        artist: 'Unknown Artist',
+        album: 'Unknown Album',
+        duration: asset.duration && asset.duration > 0 ? asset.duration * 1000 : 0,
+        uri: asset.uri,
+      }));
 
       return tracks;
     } catch (error) {
@@ -196,21 +189,6 @@ class MusicService {
     }
   }
 
-  private async getAlbumArt(albumId: string): Promise<string | undefined> {
-    try {
-      const assets = await MediaLibrary.getAssetsAsync({
-        album: albumId,
-        first: 1, // just get the first asset as cover
-        mediaType: MediaLibrary.MediaType.photo,
-      });
-  
-      return assets.assets[0]?.uri;
-    } catch (error) {
-      console.error('Failed to get album art:', error);
-      return undefined;
-    }
-  }
-  
   // Queue Management
   setQueue(tracks: MusicTrack[], startIndex: number = 0): void {
     this.playbackState.queue = tracks;
