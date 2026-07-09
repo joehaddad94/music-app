@@ -19,14 +19,7 @@ const MusicControls: React.FC = memo(() => {
   const colors = Colors[colorScheme ?? 'light'];
 
   const getRepeatIcon = () => {
-    switch (playbackState.repeatMode) {
-      case 'all':
-        return 'repeat';
-      case 'one':
-        return 'repeat.1';
-      default:
-        return 'repeat';
-    }
+    return playbackState.repeatMode === 'one' ? 'repeat.1' : 'repeat';
   };
 
   const getRepeatColor = () => {

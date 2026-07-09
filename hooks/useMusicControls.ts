@@ -29,8 +29,8 @@ export const useMusicControls = () => {
 
   const handleRepeat = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const nextMode = playbackState.repeatMode === 'none' ? 'one' :
-                    playbackState.repeatMode === 'one' ? 'all' : 'none';
+    const nextMode = playbackState.repeatMode === 'none' ? 'all' :
+                    playbackState.repeatMode === 'all' ? 'one' : 'none';
     setRepeatMode(nextMode);
   }, [playbackState.repeatMode, setRepeatMode]);
 
