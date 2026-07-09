@@ -24,9 +24,8 @@ export interface PlaybackState {
 export interface Playlist {
   id: string;
   name: string;
-  tracks: MusicTrack[];
-  createdAt: Date;
-  updatedAt: Date;
+  trackIds: string[];
+  createdAt: number; // epoch ms, JSON-friendly for persistence
 }
 
 export type RepeatMode = 'none' | 'one' | 'all';

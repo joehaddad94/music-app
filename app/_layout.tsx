@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import LoadingScreen from '@/components/LoadingScreen';
+import { LibraryProvider } from '@/contexts/LibraryContext';
 import { MusicProvider, useMusic } from '@/contexts/MusicContext';
 import { useAppState } from '@/hooks/useAppState';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -57,7 +58,9 @@ export default function RootLayout() {
 
   return (
     <MusicProvider>
-      <AppContent />
+      <LibraryProvider>
+        <AppContent />
+      </LibraryProvider>
     </MusicProvider>
   );
 }

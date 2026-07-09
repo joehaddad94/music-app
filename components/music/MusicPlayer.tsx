@@ -1,28 +1,31 @@
-import React, { memo } from 'react';
-import { Dimensions, Image, StyleSheet, View } from 'react-native';
+import React, { memo, useState } from 'react';
+import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
+import { useLibrary } from '../../contexts/LibraryContext';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import { useMusicPlayerDisplay } from '../../hooks/useMusicPlayerDisplay';
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 import { IconSymbol } from '../ui/IconSymbol';
 import MusicControls from './MusicControls';
+import PlaylistPickerModal from './PlaylistPickerModal';
 import ProgressBar from './ProgressBar';
-
-const { width } = Dimensions.get('window');
 
 const MusicPlayer: React.FC = memo(() => {
   const { playbackState, shouldShowPlayer } = useMusicPlayerDisplay();
+  const { isFavorite, toggleFavorite } = useLibrary();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   if (!shouldShowPlayer || !playbackState.currentTrack) {
     return null;
   }
 
   const { currentTrack } = playbackState;
+  const favorited = isFavorite(currentTrack.id);
 
   return (
     <ThemedView style={[
@@ -63,11 +66,43 @@ const MusicPlayer: React.FC = memo(() => {
             </ThemedText>
           )}
         </View>
+
+        <View style={styles.trackActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => toggleFavorite(currentTrack.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: favorited }}
+            accessibilityLabel={favorited ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <IconSymbol
+              size={24}
+              name={favorited ? 'heart.fill' : 'heart'}
+              color={favorited ? colors.secondary : colors.icon}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => setPickerOpen(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Add to playlist"
+          >
+            <IconSymbol size={24} name="music.note.list" color={colors.icon} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ProgressBar />
 
       <MusicControls />
+
+      <PlaylistPickerModal
+        visible={pickerOpen}
+        trackId={currentTrack.id}
+        onClose={() => setPickerOpen(false)}
+      />
     </ThemedView>
   );
 });
@@ -100,6 +135,15 @@ const styles = StyleSheet.create({
   trackDetails: {
     flex: 1,
     justifyContent: 'center',
+  },
+  trackActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  actionButton: {
+    padding: 6,
+    marginLeft: 4,
   },
   title: {
     fontSize: 18,
