@@ -5,24 +5,33 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import LoadingScreen from '@/components/LoadingScreen';
-import { MusicProvider } from '@/contexts/MusicContext';
+import { MusicProvider, useMusic } from '@/contexts/MusicContext';
 import { useAppState } from '@/hooks/useAppState';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+
+// Minimum time the branded loading screen stays up so it doesn't flash on
+// fast devices. The screen is otherwise dismissed as soon as the first
+// library scan resolves — not on a fixed timer.
+const MIN_SPLASH_MS = 1000;
 
 function AppContent() {
   const colorScheme = useColorScheme();
-  const [isLoading, setIsLoading] = useState(true);
-  
+  const { loadTracks } = useMusic();
+  const [scanDone, setScanDone] = useState(false);
+  const [minTimePassed, setMinTimePassed] = useState(false);
+
   // Initialize app state handling for background audio
   useAppState();
 
-  const handleLoadingFinish = () => {
-    setIsLoading(false);
-  };
+  useEffect(() => {
+    loadTracks().finally(() => setScanDone(true));
+    const timer = setTimeout(() => setMinTimePassed(true), MIN_SPLASH_MS);
+    return () => clearTimeout(timer);
+  }, [loadTracks]);
 
-  if (isLoading) {
-    return <LoadingScreen onFinish={handleLoadingFinish} />;
+  if (!scanDone || !minTimePassed) {
+    return <LoadingScreen />;
   }
 
   return (

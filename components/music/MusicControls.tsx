@@ -38,6 +38,9 @@ const MusicControls: React.FC = memo(() => {
           style={styles.controlButton}
           onPress={handleShuffle}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ selected: playbackState.shuffleMode }}
+          accessibilityLabel={playbackState.shuffleMode ? 'Shuffle on' : 'Shuffle off'}
         >
           <IconSymbol
             size={24}
@@ -51,6 +54,8 @@ const MusicControls: React.FC = memo(() => {
           style={styles.controlButton}
           onPress={handlePrevious}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Previous track"
         >
           <IconSymbol
             size={28}
@@ -64,6 +69,8 @@ const MusicControls: React.FC = memo(() => {
           style={[styles.playButton, { backgroundColor: colors.tint }]}
           onPress={handlePlayPause}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={playbackState.isPlaying ? 'Pause' : 'Play'}
         >
           <IconSymbol
             size={32}
@@ -77,6 +84,8 @@ const MusicControls: React.FC = memo(() => {
           style={styles.controlButton}
           onPress={handleNext}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Next track"
         >
           <IconSymbol
             size={28}
@@ -90,6 +99,15 @@ const MusicControls: React.FC = memo(() => {
           style={styles.controlButton}
           onPress={handleRepeat}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ selected: playbackState.repeatMode !== 'none' }}
+          accessibilityLabel={
+            playbackState.repeatMode === 'one'
+              ? 'Repeat one'
+              : playbackState.repeatMode === 'all'
+              ? 'Repeat all'
+              : 'Repeat off'
+          }
         >
           <IconSymbol
             size={24}
