@@ -1,27 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useMusic } from '../contexts/MusicContext';
+import { useMusic, usePlaybackProgress } from '../contexts/MusicContext';
 
 export const useMusicPlayer = () => {
-  const { playbackState, playTrack, pause, seekTo, setVolume } = useMusic();
+  const { seekTo, setVolume } = useMusic();
+  const { position, duration } = usePlaybackProgress();
   const [isDragging, setIsDragging] = useState(false);
   const [localPosition, setLocalPosition] = useState(0);
 
   // Update local position when not dragging
   useEffect(() => {
     if (!isDragging) {
-      setLocalPosition(playbackState.position);
+      setLocalPosition(position);
     }
-  }, [playbackState.position, isDragging]);
-
-  const handlePlayPause = useCallback(() => {
-    if (playbackState.isPlaying) {
-      pause();
-    } else {
-      if (playbackState.currentTrack) {
-        playTrack(playbackState.currentTrack);
-      }
-    }
-  }, [playbackState.isPlaying, playbackState.currentTrack, playTrack, pause]);
+  }, [position, isDragging]);
 
   const handleSeek = useCallback((position: number) => {
     seekTo(position);
@@ -51,10 +42,10 @@ export const useMusicPlayer = () => {
   }, []);
 
   return {
-    playbackState,
+    position,
+    duration,
     isDragging,
     localPosition,
-    handlePlayPause,
     handleSeek,
     handleSeekStart,
     handleSeekEnd,
