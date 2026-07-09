@@ -1,30 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import { Animated, Dimensions, StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 import { IconSymbol } from './ui/IconSymbol';
 
-const { width, height } = Dimensions.get('window');
-
-interface LoadingScreenProps {
-  onFinish: () => void;
-}
-
-export const LoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
+const LoadingScreen: React.FC = () => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [scaleAnim] = useState(new Animated.Value(0.8));
-  const [rotateAnim] = useState(new Animated.Value(0));
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Start animations
+    // Entrance animation plus a looping spinner. Dismissal is driven by the
+    // parent (app readiness), not a fixed timer, so this component just
+    // animates while it is mounted.
+    const loop = Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      })
+    );
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 800,
+        duration: 600,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
@@ -33,28 +37,12 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ onFinish }) => {
         friction: 7,
         useNativeDriver: true,
       }),
-      Animated.loop(
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        })
-      ),
     ]).start();
 
-    // Auto finish after 2 seconds
-    const timer = setTimeout(() => {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }).start(() => {
-        onFinish();
-      });
-    }, 2000);
+    loop.start();
 
-    return () => clearTimeout(timer);
-  }, [fadeAnim, scaleAnim, rotateAnim, onFinish]);
+    return () => loop.stop();
+  }, [fadeAnim, scaleAnim, rotateAnim]);
 
   const spin = rotateAnim.interpolate({
     inputRange: [0, 1],

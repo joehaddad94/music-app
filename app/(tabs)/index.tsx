@@ -1,3 +1,4 @@
+import ErrorBanner from '@/components/music/ErrorBanner';
 import MusicLibrary from '@/components/music/MusicLibrary';
 import MusicPlayer from '@/components/music/MusicPlayer';
 import { ThemedText } from '@/components/ThemedText';
@@ -5,18 +6,16 @@ import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
 import { useMusic } from '@/contexts/MusicContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LibraryScreen() {
-  const { loadTracks, playbackState } = useMusic();
+  // The initial scan runs once in AppContent; the library reads tracks from
+  // context here and can re-scan via pull-to-refresh.
+  const { playbackState } = useMusic();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-
-  useEffect(() => {
-    loadTracks();
-  }, [loadTracks]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -25,6 +24,8 @@ export default function LibraryScreen() {
           Music Library
         </ThemedText>
       </ThemedView>
+
+      <ErrorBanner />
 
       <ThemedView style={styles.content}>
         <MusicLibrary hasPlayer={!!playbackState.currentTrack} />

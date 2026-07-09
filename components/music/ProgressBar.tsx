@@ -8,14 +8,15 @@ import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 
 const ProgressBar: React.FC = memo(() => {
-  const { 
-    playbackState, 
-    isDragging, 
-    localPosition, 
-    handleSeek, 
-    handleSeekStart, 
-    handleSeekEnd, 
-    formatTime 
+  const {
+    position,
+    duration,
+    isDragging,
+    localPosition,
+    handleSeek,
+    handleSeekStart,
+    handleSeekEnd,
+    formatTime
   } = useMusicPlayer();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -25,23 +26,23 @@ const ProgressBar: React.FC = memo(() => {
   };
 
   const handleSlidingComplete = async (value: number) => {
-    const newPosition = value * playbackState.duration;
+    const newPosition = value * duration;
     handleSeek(newPosition);
     handleSeekEnd();
   };
 
-  const currentPosition = playbackState.duration > 0 
-    ? (isDragging ? localPosition : playbackState.position) / playbackState.duration 
+  const currentPosition = duration > 0
+    ? (isDragging ? localPosition : position) / duration
     : 0;
 
   return (
     <ThemedView style={styles.container}>
       <View style={styles.timeContainer}>
         <ThemedText type="defaultSemiBold" style={styles.timeText}>
-          {formatTime(isDragging ? localPosition : playbackState.position)}
+          {formatTime(isDragging ? localPosition : position)}
         </ThemedText>
         <ThemedText type="defaultSemiBold" style={styles.timeText}>
-          {formatTime(playbackState.duration)}
+          {formatTime(duration)}
         </ThemedText>
       </View>
       

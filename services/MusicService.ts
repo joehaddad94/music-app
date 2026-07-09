@@ -2,15 +2,6 @@ import { Audio } from 'expo-av';
 import * as MediaLibrary from 'expo-media-library';
 import { MusicTrack, PlaybackState } from '../types/MusicTypes';
 
-// Configure audio for background playback
-Audio.setAudioModeAsync({
-  allowsRecordingIOS: false,
-  staysActiveInBackground: true,
-  playsInSilentModeIOS: true,
-  shouldDuckAndroid: true,
-  playThroughEarpieceAndroid: false,
-});
-
 class MusicService {
   private sound: Audio.Sound | null = null;
   private playbackState: PlaybackState = {
@@ -26,7 +17,6 @@ class MusicService {
     originalQueue: [],
   };
   private listeners: ((state: PlaybackState) => void)[] = [];
-  private positionUpdateInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.initializeAudio();
@@ -169,25 +159,18 @@ class MusicService {
         return this.getMockMusicData();
       }
 
-      const tracks: MusicTrack[] = await Promise.all(
-        audioAssets.map(async (asset) => {
-          // Try to get duration from the asset, fallback to 0 if not available
-          let duration = 0;
-          if (asset.duration && asset.duration > 0) {
-            duration = asset.duration * 1000; // Convert seconds to milliseconds
-          }
-
-          return {
-            id: asset.id,
-            title: asset.filename.replace(/\.[^/.]+$/, ''), // Remove file extension
-            artist: 'Unknown Artist',
-            album: 'Unknown Album',
-            duration: duration,
-            uri: asset.uri,
-            albumArt: asset.albumId ? await this.getAlbumArt(asset.albumId) : undefined,
-          };
-        })
-      );
+      // Build tracks synchronously. We deliberately do NOT fetch album art
+      // per-track here: it previously issued one MediaLibrary query per file
+      // (thousands on a large library) and queried the photo album bucket,
+      // which never matches audio anyway. The UI falls back to a note icon.
+      const tracks: MusicTrack[] = audioAssets.map((asset) => ({
+        id: asset.id,
+        title: asset.filename.replace(/\.[^/.]+$/, ''), // Remove file extension
+        artist: 'Unknown Artist',
+        album: 'Unknown Album',
+        duration: asset.duration && asset.duration > 0 ? asset.duration * 1000 : 0,
+        uri: asset.uri,
+      }));
 
       return tracks;
     } catch (error) {
@@ -197,21 +180,6 @@ class MusicService {
     }
   }
 
-  private async getAlbumArt(albumId: string): Promise<string | undefined> {
-    try {
-      const assets = await MediaLibrary.getAssetsAsync({
-        album: albumId,
-        first: 1, // just get the first asset as cover
-        mediaType: MediaLibrary.MediaType.photo,
-      });
-  
-      return assets.assets[0]?.uri;
-    } catch (error) {
-      console.error('Failed to get album art:', error);
-      return undefined;
-    }
-  }
-  
   // Queue Management
   setQueue(tracks: MusicTrack[], startIndex: number = 0): void {
     this.playbackState.queue = tracks;
@@ -346,7 +314,7 @@ class MusicService {
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: track.uri },
-        { shouldPlay: false, volume: this.playbackState.volume }
+        { shouldPlay: false, volume: this.playbackState.volume, progressUpdateIntervalMillis: 500 }
       );
 
       this.sound = sound;
@@ -385,7 +353,6 @@ class MusicService {
     if (this.sound) {
       try {
         await this.sound.playAsync();
-        this.startPositionUpdates();
       } catch (error) {
         console.error('Failed to play:', error);
       }
@@ -396,7 +363,6 @@ class MusicService {
     if (this.sound) {
       try {
         await this.sound.pauseAsync();
-        this.stopPositionUpdates();
       } catch (error) {
         console.error('Failed to pause:', error);
       }
@@ -407,7 +373,6 @@ class MusicService {
     if (this.sound) {
       try {
         await this.sound.stopAsync();
-        this.stopPositionUpdates();
         this.playbackState.position = 0;
         this.notifyListeners();
       } catch (error) {
@@ -438,40 +403,6 @@ class MusicService {
     }
   }
 
-  private startPositionUpdates(): void {
-    this.stopPositionUpdates();
-    this.positionUpdateInterval = setInterval(() => {
-      if (this.sound) {
-        this.sound.getStatusAsync().then((status) => {
-          if (status.isLoaded) {
-            const newPosition = status.positionMillis || 0;
-            const newDuration = status.durationMillis || 0;
-            const newIsPlaying = status.isPlaying || false;
-
-            // Only update if values have actually changed
-            if (
-              this.playbackState.position !== newPosition ||
-              this.playbackState.duration !== newDuration ||
-              this.playbackState.isPlaying !== newIsPlaying
-            ) {
-              this.playbackState.position = newPosition;
-              this.playbackState.duration = newDuration;
-              this.playbackState.isPlaying = newIsPlaying;
-              this.notifyListeners();
-            }
-          }
-        });
-      }
-    }, 1000);
-  }
-
-  private stopPositionUpdates(): void {
-    if (this.positionUpdateInterval) {
-      clearInterval(this.positionUpdateInterval);
-      this.positionUpdateInterval = null;
-    }
-  }
-
   addListener(listener: (state: PlaybackState) => void): void {
     this.listeners.push(listener);
   }
@@ -489,7 +420,6 @@ class MusicService {
   }
 
   async cleanup(): Promise<void> {
-    this.stopPositionUpdates();
     if (this.sound) {
       await this.sound.unloadAsync();
       this.sound = null;

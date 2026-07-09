@@ -1,27 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useMusic } from '../contexts/MusicContext';
+import { useMusic, usePlaybackProgress } from '../contexts/MusicContext';
+import { formatDuration } from '../utils/musicUtils';
 
 export const useMusicPlayer = () => {
-  const { playbackState, playTrack, pause, seekTo, setVolume } = useMusic();
+  const { seekTo, setVolume } = useMusic();
+  const { position, duration } = usePlaybackProgress();
   const [isDragging, setIsDragging] = useState(false);
   const [localPosition, setLocalPosition] = useState(0);
 
   // Update local position when not dragging
   useEffect(() => {
     if (!isDragging) {
-      setLocalPosition(playbackState.position);
+      setLocalPosition(position);
     }
-  }, [playbackState.position, isDragging]);
-
-  const handlePlayPause = useCallback(() => {
-    if (playbackState.isPlaying) {
-      pause();
-    } else {
-      if (playbackState.currentTrack) {
-        playTrack(playbackState.currentTrack);
-      }
-    }
-  }, [playbackState.isPlaying, playbackState.currentTrack, playTrack, pause]);
+  }, [position, isDragging]);
 
   const handleSeek = useCallback((position: number) => {
     seekTo(position);
@@ -40,21 +32,13 @@ export const useMusicPlayer = () => {
     setVolume(volume);
   }, [setVolume]);
 
-  const formatTime = useCallback((milliseconds: number): string => {
-    if (milliseconds === 0 || !milliseconds) {
-      return '0:00';
-    }
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  }, []);
+  const formatTime = useCallback((milliseconds: number): string => formatDuration(milliseconds), []);
 
   return {
-    playbackState,
+    position,
+    duration,
     isDragging,
     localPosition,
-    handlePlayPause,
     handleSeek,
     handleSeekStart,
     handleSeekEnd,

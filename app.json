@@ -24,7 +24,6 @@
       "permissions": [
         "READ_EXTERNAL_STORAGE",
         "READ_MEDIA_AUDIO",
-        "WRITE_EXTERNAL_STORAGE",
         "WAKE_LOCK"
       ]
     },
