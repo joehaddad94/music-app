@@ -2,23 +2,19 @@ import React, { memo, useCallback } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   RefreshControl,
   StyleSheet,
-  TouchableOpacity,
-  View
+  TouchableOpacity
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import { useMusicLibrary } from '../../hooks/useMusicLibrary';
 import { MusicTrack } from '../../types/MusicTypes';
-import { formatDuration } from '../../utils/musicUtils';
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 import { IconSymbol } from '../ui/IconSymbol';
 import SearchBar from './SearchBar';
-
-const TRACK_ITEM_HEIGHT = 74;
+import TrackRow, { TRACK_ITEM_HEIGHT } from './TrackRow';
 
 interface MusicLibraryProps {
   onTrackSelect?: (track: MusicTrack) => void;
@@ -44,82 +40,14 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect, hasPlay
     onTrackSelect?.(track);
   }, [handleTrackPress, onTrackSelect]);
 
-  const renderTrackItem = useCallback(({ item }: { item: MusicTrack }) => {
-    const isCurrentTrack = playbackState.currentTrack?.id === item.id;
-    
-    return (
-      <TouchableOpacity
-        style={[
-          styles.trackItem,
-          { borderBottomColor: colors.border },
-          isCurrentTrack && { backgroundColor: colors.tint + '15' }
-        ]}
-        onPress={() => onTrackPress(item)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.trackInfo}>
-          <View style={[styles.albumArtContainer, { backgroundColor: colors.tint + '15' }]}>
-            {item.albumArt ? (
-              <Image
-                source={{ uri: item.albumArt }}
-                style={styles.albumArtImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <IconSymbol
-                size={28}
-                name="music.note"
-                color={isCurrentTrack ? colors.playingIndicator : colors.icon}
-              />
-            )}
-          </View>
-
-          <View style={styles.trackDetails}>
-            <ThemedText 
-              type="defaultSemiBold" 
-              numberOfLines={1}
-              style={[
-                styles.trackTitle,
-                isCurrentTrack && { color: colors.playingIndicator }
-              ]}
-            >
-              {item.title}
-            </ThemedText>
-            <ThemedText 
-              type="default" 
-              numberOfLines={1}
-              style={styles.trackArtist}
-            >
-              {item.artist}
-            </ThemedText>
-            {item.album && (
-              <ThemedText 
-                type="defaultSemiBold" 
-                numberOfLines={1}
-                style={styles.trackAlbum}
-              >
-                {item.album}
-              </ThemedText>
-            )}
-          </View>
-        </View>
-        
-        <View style={styles.trackMeta}>
-          <ThemedText type="defaultSemiBold" style={styles.duration}>
-            {formatDuration(item.duration)}
-          </ThemedText>
-          {isCurrentTrack && playbackState.isPlaying && (
-            <IconSymbol
-              size={16}
-              name="speaker.wave.2.fill"
-              color={colors.playingIndicator}
-              style={styles.playingIcon}
-            />
-          )}
-        </View>
-      </TouchableOpacity>
-    );
-  }, [onTrackPress, playbackState, colors]);
+  const renderTrackItem = useCallback(({ item }: { item: MusicTrack }) => (
+    <TrackRow
+      track={item}
+      isCurrent={playbackState.currentTrack?.id === item.id}
+      isPlaying={playbackState.isPlaying}
+      onPress={onTrackPress}
+    />
+  ), [onTrackPress, playbackState.currentTrack?.id, playbackState.isPlaying]);
 
 
   const keyExtractor = useCallback((item: MusicTrack) => item.id, []);
@@ -207,61 +135,6 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingBottom: 20,
-  },
-  trackItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: TRACK_ITEM_HEIGHT,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    backgroundColor: 'transparent',
-  },
-  trackInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  albumArtContainer: {
-    width: 50,
-    height: 50,
-    marginRight: 12,
-    borderRadius: 6,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  albumArtImage: {
-    width: 50,
-    height: 50,
-  },
-  trackDetails: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  trackTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  trackArtist: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginBottom: 1,
-  },
-  trackAlbum: {
-    fontSize: 12,
-    opacity: 0.5,
-  },
-  trackMeta: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  duration: {
-    fontSize: 12,
-    opacity: 0.6,
-  },
-  playingIcon: {
-    marginTop: 4,
   },
   noResultsContainer: {
     alignItems: 'center',
