@@ -14,7 +14,7 @@ git branch --show-current          # expect: fix/expo-audio-migration
 npm install
 npm run typecheck                  # expect: exit 0
 npx eslint .                       # expect: exit 0, zero warnings
-npm test                           # expect: 119/119 passing, 9 suites
+npm test                           # expect: 129/129 passing, 10 suites
 npx expo-doctor                    # expect: 17/17
 ```
 
@@ -276,10 +276,12 @@ targeted queries):
 - [x] No bulk download and no auto-caching — see the ToS constraint in §3.
       **Keep it that way.**
 
-**Deferred: offline detection.** Disabling non-downloaded tracks when there is no network
-needs `expo-network` or NetInfo — a new native dependency, and §2 says defer it. Today a
-stream failure surfaces as an error with a retry rather than being pre-empted. Revisit only
-if the UX genuinely needs connectivity state *before* making a request.
+**Offline detection landed later**, once Joe approved the dependency: `expo-network@~8.0.8`
+via `hooks/useIsOffline.ts`. Discover shows an offline banner and dims non-downloaded
+streamed tracks; downloaded ones stay playable. The hook treats *unknown* connectivity as
+online — both `isConnected` and `isInternetReachable` are optional and undefined before the
+first reading, and hiding tracks on a good connection is worse than offering one that fails
+with a retry.
 
 ### Pass 3 — Discover, artists, smart shuffle — **DONE**
 
@@ -339,12 +341,25 @@ Use `limit` up to 200 to fetch fewer, larger pages.
 
 ## 8. Testing
 
-`jest-expo/node` preset, `testMatch: **/__tests__/**/*.test.ts`. 30 tests exist, covering
-the playback service and `formatDuration`.
+Two Jest projects, split by file extension:
+
+- **`node`** — `jest-expo/node` preset, `*.test.ts`. Services and utilities. Fast, no
+  renderer.
+- **`react`** — `jest-expo` preset, `*.test.tsx`. Hooks and components, via
+  `@testing-library/react-native`.
+
+**Pin RNTL at v13.** v14 requires a `test-renderer@^1.0.0` peer and pulls jest 30 tooling
+(`pretty-format@^30`) while this project is on jest 29. v13's peers are satisfied by what is
+already installed, including `react-test-renderer@19.1.0`.
 
 Convention on this branch: **mutation-test new suites rather than trusting a green run.**
-Reintroduce the bug the test claims to catch and confirm it goes red. The existing shuffle
-and `stop()` tests were validated this way.
+Reintroduce the bug the test claims to catch and confirm it goes red.
+
+That convention has repeatedly earned its keep. The `useRemoteSearch` debounce test
+originally passed with `DEBOUNCE_MS` set to 0 — under fake timers a 0ms and a 400ms timer
+behave identically unless the clock is advanced by *less* than the interval, so the test
+was proving the effect cleanup, not the delay. Advance partway, assert nothing fired, then
+advance past it.
 
 Worth covering in Pass 1–3:
 
@@ -388,9 +403,6 @@ Network calls should be mocked; do not hit the live API from tests (quota, flaki
 1. **Device testing** — nothing on this branch has run on hardware. Background audio, lock
    screen controls and streamed playback all need a real device. The API responses are
    verified; the playback of them is not.
-2. **Hook tests** — `useRemoteSearch` (debounce, abort, paging) is untested. Testing it
-   needs `@testing-library/react-native`, which is a new dependency and so a deliberate
-   decision rather than something to add in passing.
-3. **Cached-track playback cost** — a persisted track now streams via `/tracks/file/`,
+2. **Cached-track playback cost** — a persisted track now streams via `/tracks/file/`,
    which spends one API request per play. Negligible against 35,000/month, but if a future
    feature replays cached tracks in bulk, revisit it.
