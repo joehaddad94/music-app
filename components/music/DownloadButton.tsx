@@ -9,6 +9,8 @@ import { IconSymbol } from '../ui/IconSymbol';
 
 interface DownloadButtonProps {
   track: MusicTrack;
+  /** Smaller, tighter variant for use inside a list row. */
+  compact?: boolean;
 }
 
 /**
@@ -19,7 +21,7 @@ interface DownloadButtonProps {
  * poking at something that will never work. Around 2% of the Jamendo
  * catalogue is in that state, so it is worth handling gracefully.
  */
-const DownloadButton: React.FC<DownloadButtonProps> = memo(({ track }) => {
+const DownloadButton: React.FC<DownloadButtonProps> = memo(({ track, compact }) => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const { canDownload, isDownloaded, progressFor, download, cancel, remove } = useDownloads();
@@ -52,9 +54,9 @@ const DownloadButton: React.FC<DownloadButtonProps> = memo(({ track }) => {
 
   return (
     <TouchableOpacity
-      style={styles.button}
+      style={[styles.button, compact && styles.buttonCompact]}
       onPress={handlePress}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
       accessibilityRole="button"
       accessibilityLabel={
         progress
@@ -73,7 +75,7 @@ const DownloadButton: React.FC<DownloadButtonProps> = memo(({ track }) => {
         </View>
       ) : (
         <IconSymbol
-          size={24}
+          size={compact ? 20 : 24}
           name={downloaded ? 'checkmark.circle.fill' : 'arrow.down.circle'}
           color={downloaded ? colors.success : colors.icon}
         />
@@ -88,6 +90,11 @@ const styles = StyleSheet.create({
   button: {
     padding: 6,
     marginLeft: 4,
+  },
+  buttonCompact: {
+    padding: 2,
+    marginLeft: 0,
+    paddingHorizontal: 4,
   },
   progress: {
     alignItems: 'center',

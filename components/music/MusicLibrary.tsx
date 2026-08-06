@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { useDownloads } from '../../hooks/useDownloads';
+import { useIsOffline } from '../../hooks/useIsOffline';
 import { useMusicLibrary } from '../../hooks/useMusicLibrary';
 import { MusicTrack } from '../../types/MusicTypes';
 import { ThemedText } from '../ThemedText';
@@ -34,6 +36,8 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect, hasPlay
   } = useMusicLibrary();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const isOffline = useIsOffline();
+  const { isDownloaded } = useDownloads();
 
   const onTrackPress = useCallback((track: MusicTrack) => {
     handleTrackPress(track);
@@ -46,8 +50,11 @@ const MusicLibrary: React.FC<MusicLibraryProps> = memo(({ onTrackSelect, hasPlay
       isCurrent={playbackState.currentTrack?.id === item.id}
       isPlaying={playbackState.isPlaying}
       onPress={onTrackPress}
+      // Favorites and playlists can hold streamed tracks, so the library is
+      // not automatically all-local.
+      unavailable={isOffline && item.source !== 'local' && !isDownloaded(item.id)}
     />
-  ), [onTrackPress, playbackState.currentTrack?.id, playbackState.isPlaying]);
+  ), [onTrackPress, playbackState.currentTrack?.id, playbackState.isPlaying, isOffline, isDownloaded]);
 
 
   const keyExtractor = useCallback((item: MusicTrack) => item.id, []);

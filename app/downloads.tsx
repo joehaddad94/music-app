@@ -60,6 +60,9 @@ export default function DownloadsScreen() {
             isCurrent={playbackState.currentTrack?.id === item.track.id}
             isPlaying={playbackState.isPlaying}
             onPress={handlePlay}
+            // The row already sits beside a delete control here, and every
+            // track on this screen is downloaded by definition.
+            hideActions
           />
         </View>
         <TouchableOpacity

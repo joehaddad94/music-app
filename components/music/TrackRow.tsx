@@ -1,13 +1,17 @@
+import { router } from 'expo-router';
 import React, { memo } from 'react';
 import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
+import { useLibrary } from '../../contexts/LibraryContext';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { useDownloads } from '../../hooks/useDownloads';
 import { MusicTrack } from '../../types/MusicTypes';
 import { formatDuration } from '../../utils/musicUtils';
 import { ThemedText } from '../ThemedText';
 import { IconSymbol } from '../ui/IconSymbol';
+import DownloadButton from './DownloadButton';
 
-/** Fixed so FlatList can use `getItemLayout` in both the library and Discover. */
+/** Fixed so FlatList can use `getItemLayout` in every listing. */
 export const TRACK_ITEM_HEIGHT = 74;
 
 interface TrackRowProps {
@@ -21,36 +25,50 @@ interface TrackRowProps {
    * reshuffle itself the moment a connection drops.
    */
   unavailable?: boolean;
+  /**
+   * Hides the favourite and download controls. Used where the row already
+   * sits beside its own actions, such as the Downloads screen.
+   */
+  hideActions?: boolean;
 }
 
 /**
- * One track in a list. Shared by the on-device library and Discover so a
- * streamed track and a local file look and behave identically.
+ * One track in a list. Shared by every listing so a streamed track and a
+ * local file look and behave identically.
+ *
+ * The favourite and download controls live here rather than only in the
+ * player, because deciding what to keep is something you do while browsing —
+ * previously you had to play a track before you could save it.
  */
-const TrackRow: React.FC<TrackRowProps> = memo(({ track, isCurrent, isPlaying, onPress, unavailable }) => {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+const TrackRow: React.FC<TrackRowProps> = memo(
+  ({ track, isCurrent, isPlaying, onPress, unavailable, hideActions }) => {
+    const colorScheme = useColorScheme();
+    const colors = Colors[colorScheme ?? 'light'];
+    const { isFavorite, toggleFavorite } = useLibrary();
+    const { isDownloaded } = useDownloads();
 
-  return (
-    <TouchableOpacity
-      style={[
-        styles.trackItem,
-        { borderBottomColor: colors.border },
-        isCurrent && { backgroundColor: colors.tint + '15' },
-        unavailable && styles.unavailable,
-      ]}
-      onPress={() => onPress(track)}
-      activeOpacity={0.7}
-      disabled={unavailable}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: Boolean(unavailable) }}
-      accessibilityLabel={
-        unavailable
-          ? `${track.title} by ${track.artist}, unavailable offline`
-          : `Play ${track.title} by ${track.artist}`
-      }
-    >
-      <View style={styles.trackInfo}>
+    const favorited = isFavorite(track.id);
+    const downloaded = isDownloaded(track.id);
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.trackItem,
+          { borderBottomColor: colors.border },
+          isCurrent && { backgroundColor: colors.tint + '15' },
+          unavailable && styles.unavailable,
+        ]}
+        onPress={() => onPress(track)}
+        activeOpacity={0.7}
+        disabled={unavailable}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: Boolean(unavailable) }}
+        accessibilityLabel={
+          unavailable
+            ? `${track.title} by ${track.artist}, unavailable offline`
+            : `Play ${track.title} by ${track.artist}`
+        }
+      >
         <View style={[styles.albumArtContainer, { backgroundColor: colors.tint + '15' }]}>
           {track.albumArt ? (
             <Image source={{ uri: track.albumArt }} style={styles.albumArtImage} resizeMode="cover" />
@@ -71,21 +89,43 @@ const TrackRow: React.FC<TrackRowProps> = memo(({ track, isCurrent, isPlaying, o
           >
             {track.title}
           </ThemedText>
-          <ThemedText type="default" numberOfLines={1} style={styles.trackArtist}>
-            {track.artist}
-          </ThemedText>
-          {track.album && (
-            <ThemedText type="defaultSemiBold" numberOfLines={1} style={styles.trackAlbum}>
-              {track.album}
-            </ThemedText>
-          )}
-        </View>
-      </View>
 
-      <View style={styles.trackMeta}>
-        <ThemedText type="defaultSemiBold" style={styles.duration}>
-          {formatDuration(track.duration)}
-        </ThemedText>
+          <View style={styles.subtitleRow}>
+            {track.artistId ? (
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: '/artist/[id]',
+                    params: { id: track.artistId as string, name: track.artist },
+                  })
+                }
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                accessibilityRole="link"
+                accessibilityLabel={`More by ${track.artist}`}
+              >
+                <ThemedText numberOfLines={1} style={[styles.trackArtist, { color: colors.tint }]}>
+                  {track.artist}
+                </ThemedText>
+              </TouchableOpacity>
+            ) : (
+              <ThemedText numberOfLines={1} style={styles.trackArtist}>
+                {track.artist}
+              </ThemedText>
+            )}
+
+            {downloaded && (
+              <IconSymbol
+                size={12}
+                name="arrow.down.circle.fill"
+                color={colors.success}
+                style={styles.downloadedMark}
+              />
+            )}
+          </View>
+
+          <ThemedText style={styles.duration}>{formatDuration(track.duration)}</ThemedText>
+        </View>
+
         {isCurrent && isPlaying && (
           <IconSymbol
             size={16}
@@ -94,10 +134,35 @@ const TrackRow: React.FC<TrackRowProps> = memo(({ track, isCurrent, isPlaying, o
             style={styles.playingIcon}
           />
         )}
-      </View>
-    </TouchableOpacity>
-  );
-});
+
+        {!hideActions && (
+          <View style={styles.actions}>
+            <TouchableOpacity
+              onPress={() => toggleFavorite(track)}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+              style={styles.action}
+              accessibilityRole="button"
+              accessibilityState={{ selected: favorited }}
+              accessibilityLabel={
+                favorited
+                  ? `Remove ${track.title} from favorites`
+                  : `Add ${track.title} to favorites`
+              }
+            >
+              <IconSymbol
+                size={20}
+                name={favorited ? 'heart.fill' : 'heart'}
+                color={favorited ? colors.secondary : colors.icon}
+              />
+            </TouchableOpacity>
+
+            <DownloadButton track={track} compact />
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }
+);
 
 TrackRow.displayName = 'TrackRow';
 
@@ -109,11 +174,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     backgroundColor: 'transparent',
-  },
-  trackInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   albumArtContainer: {
     width: 50,
@@ -133,29 +193,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   trackTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 2,
+  },
+  subtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 1,
   },
   trackArtist: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginBottom: 1,
+    fontSize: 13,
+    opacity: 0.8,
+    flexShrink: 1,
   },
-  trackAlbum: {
-    fontSize: 12,
-    opacity: 0.5,
-  },
-  trackMeta: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+  downloadedMark: {
+    marginLeft: 6,
   },
   duration: {
-    fontSize: 12,
-    opacity: 0.6,
+    fontSize: 11,
+    opacity: 0.5,
+    marginTop: 1,
   },
   playingIcon: {
-    marginTop: 4,
+    marginRight: 4,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  action: {
+    paddingHorizontal: 4,
   },
   unavailable: {
     opacity: 0.4,
