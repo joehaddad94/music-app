@@ -39,12 +39,22 @@ jest.mock('expo-audio', () => ({
   setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
-/** Controls whether a given track is treated as downloaded. */
+/**
+ * Controls whether a given track is treated as downloaded. Entries only become
+ * visible once `hydrate()` has been awaited, mirroring the real registry —
+ * which is what makes the "resolves after hydration" test meaningful.
+ */
 const mockLocalUris = new Map<string, string>();
+const mockDownloadsHydrated = { current: false };
+const mockHydrate = jest.fn(async () => {
+  mockDownloadsHydrated.current = true;
+});
 
 jest.mock('../DownloadService', () => ({
   downloadService: {
-    localUriFor: (trackId: string) => mockLocalUris.get(trackId),
+    hydrate: () => mockHydrate(),
+    localUriFor: (trackId: string) =>
+      mockDownloadsHydrated.current ? mockLocalUris.get(trackId) : undefined,
   },
 }));
 
@@ -126,6 +136,7 @@ describe('MusicService', () => {
     mockPlayerRef.current = createMockPlayer();
     mockStatusListenerRef.current = null;
     mockLocalUris.clear();
+    mockDownloadsHydrated.current = false;
     mockRecommendations.length = 0;
     mockRecommendationError.current = null;
     (global as any).__DEV__ = true;
@@ -183,6 +194,23 @@ describe('MusicService', () => {
       expect(mockPlayerRef.current.replace).toHaveBeenCalledWith({
         uri: 'file:///docs/downloads/jamendo-2.mp3',
       });
+    });
+
+    it('waits for the registry before deciding a track has no local copy', async () => {
+      // Regression: the registry used to hydrate only when a screen using
+      // `useDownloads` mounted, so a cold start on the Library tab streamed a
+      // downloaded track — and failed outright with no connection.
+      const track = streamed();
+      mockLocalUris.set(track.id, 'file:///docs/downloads/jamendo-1593988.mp3');
+
+      await service.loadTrack(track);
+
+      expect(mockHydrate).toHaveBeenCalled();
+      const audio = require('expo-audio');
+      expect(audio.createAudioPlayer).toHaveBeenCalledWith(
+        { uri: 'file:///docs/downloads/jamendo-1593988.mp3' },
+        expect.anything()
+      );
     });
 
     it('does not claim to be buffering when playing from disk', async () => {

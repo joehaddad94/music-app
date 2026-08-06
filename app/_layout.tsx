@@ -8,6 +8,8 @@ import LoadingScreen from '@/components/LoadingScreen';
 import { LibraryProvider } from '@/contexts/LibraryContext';
 import { MusicProvider, useMusic } from '@/contexts/MusicContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { downloadService } from '@/services/DownloadService';
+import { recentlyPlayed } from '@/services/RecentlyPlayed';
 import React, { useEffect, useState } from 'react';
 
 // Minimum time the branded loading screen stays up so it doesn't flash on
@@ -22,6 +24,14 @@ function AppContent() {
   const [minTimePassed, setMinTimePassed] = useState(false);
 
   useEffect(() => {
+    // Hydrate the download registry here rather than leaving it to whichever
+    // screen happens to mount `useDownloads` first. MusicService consults the
+    // registry when resolving a track to play, and that can happen before any
+    // of those screens exist — in which case a downloaded track would stream
+    // instead of playing from disk, which fails outright when offline.
+    void downloadService.hydrate();
+    void recentlyPlayed.hydrate();
+
     loadTracks().finally(() => setScanDone(true));
     const timer = setTimeout(() => setMinTimePassed(true), MIN_SPLASH_MS);
     return () => clearTimeout(timer);

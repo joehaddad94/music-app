@@ -509,6 +509,13 @@ class MusicService {
       // Prefer an offline copy. This lives here rather than at the tap site so
       // that auto-advance and next/previous get it too — those load tracks
       // without going back through the UI.
+      //
+      // Hydration is awaited rather than assumed. The registry was otherwise
+      // only loaded when a screen using `useDownloads` mounted, so a track
+      // played before that — a cold start on the Library tab — streamed even
+      // though a local copy existed, and failed outright when offline. The
+      // call is memoised, so it costs nothing after the first load.
+      await downloadService.hydrate();
       const localUri = downloadService.localUriFor(track.id);
       const player = this.acquirePlayer({ uri: localUri ?? track.uri });
 
