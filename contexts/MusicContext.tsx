@@ -18,7 +18,6 @@ interface MusicContextType {
   setRepeatMode: (mode: 'none' | 'one' | 'all') => void;
   /** Cycles off → on → smart, skipping smart when the queue cannot seed it. */
   toggleShuffle: () => void;
-  canSmartShuffle: () => boolean;
   playNext: () => Promise<void>;
   playPrevious: () => Promise<void>;
 }
@@ -175,10 +174,6 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
     musicService.cycleShuffleMode();
   }, []);
 
-  // Recomputed per render rather than stored: it depends on what is queued,
-  // which changes without the shuffle mode changing.
-  const canSmartShuffle = useCallback(() => musicService.canSmartShuffle(), []);
-
   const playNext = useCallback(async () => {
     try {
       await musicService.playNext();
@@ -210,12 +205,11 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
     setVolume,
     setRepeatMode,
     toggleShuffle,
-    canSmartShuffle,
     playNext,
     playPrevious,
   }), [
     tracks, playbackState, isLoading, error, clearError, loadTracks, playTrack,
-    play, pause, stop, seekTo, setVolume, setRepeatMode, toggleShuffle, canSmartShuffle, playNext, playPrevious,
+    play, pause, stop, seekTo, setVolume, setRepeatMode, toggleShuffle, playNext, playPrevious,
   ]);
 
   return (

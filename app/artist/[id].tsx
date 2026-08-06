@@ -32,7 +32,7 @@ export default function ArtistScreen() {
     setIsLoading(true);
     setError(null);
 
-    JamendoClient.artistTracks(id, 0, controller.signal)
+    JamendoClient.artistTracks(id, controller.signal)
       .then(page => {
         if (controller.signal.aborted) return;
         setTracks(page.tracks);

@@ -182,6 +182,9 @@ describe('artistTracks', () => {
 
     const page = await JamendoClient.artistTracks('442045');
 
+    // One request returns the artist's whole catalogue, so there is never a
+    // second page to fetch.
+    expect(page.hasMore).toBe(false);
     expect(page.tracks).toHaveLength(2);
     expect(page.tracks[0]).toMatchObject({
       id: 'jamendo:1',

@@ -19,9 +19,9 @@ export default function TabLayout() {
           backgroundColor: colorScheme === 'dark' ? '#1C1C1E' : '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: colorScheme === 'dark' ? '#333333' : '#E0E0E0',
-          height: 65,
-          paddingBottom: 10,
-          paddingTop: 10,
+          height: 68,
+          paddingBottom: 8,
+          paddingTop: 8,
           elevation: 8,
           shadowColor: '#000',
           shadowOffset: {
@@ -31,8 +31,12 @@ export default function TabLayout() {
           shadowOpacity: colorScheme === 'dark' ? 0.3 : 0.1,
           shadowRadius: 4,
         },
+        // Labels are shown: three icon-only destinations were ambiguous, and a
+        // magnifying glass reads as "search" rather than "Discover" — which
+        // also collided with the search field inside the Library tab.
         tabBarLabelStyle: {
-          display: 'none',
+          fontSize: 11,
+          fontWeight: '600',
         },
         tabBarIconStyle: {
           marginTop: 0,

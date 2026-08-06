@@ -141,11 +141,9 @@ export default function DiscoverScreen() {
         })}
       </ScrollView>
 
-      {isLoading ? (
-        <ThemedView style={styles.stateContainer}>
-          <ActivityIndicator size="large" color={colors.tint} />
-        </ThemedView>
-      ) : (
+      {/* The list stays mounted while loading, with a spinner over it. Swapping
+          it for a centred spinner blanked the screen on every tag tap. */}
+      <View style={styles.listWrapper}>
         <FlatList
           data={tracks}
           renderItem={renderTrack}
@@ -176,7 +174,13 @@ export default function DiscoverScreen() {
           windowSize={10}
           initialNumToRender={12}
         />
-      )}
+
+        {isLoading && (
+          <View style={styles.loadingOverlay} pointerEvents="none">
+            <ActivityIndicator size="large" color={colors.tint} />
+          </View>
+        )}
+      </View>
 
       <MiniPlayer />
     </SafeAreaView>
@@ -232,6 +236,15 @@ const styles = StyleSheet.create({
   tagTextSelected: {
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  listWrapper: {
+    flex: 1,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 40,
   },
   listContent: {
     paddingBottom: 20,

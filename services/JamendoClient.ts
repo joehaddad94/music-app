@@ -383,15 +383,20 @@ export const JamendoClient = {
       .filter(track => nativeIdOf(track.id) !== nativeTrackId);
   },
 
-  /** Everything by one artist, for the artist page. */
-  async artistTracks(artistId: string, page = 0, signal?: AbortSignal): Promise<TrackPage> {
+  /**
+   * Everything by one artist, for the artist page.
+   *
+   * This endpoint nests an artist's whole catalogue under a single artist
+   * entry — `limit` counts artists, not tracks, so one request returns the lot
+   * (530 tracks for a prolific artist in testing). There is therefore nothing
+   * to page through, and `hasMore` is always false. The obvious alternative,
+   * `/tracks?artist_id=`, does page but proved far more prone to the
+   * empty-response flake described above.
+   */
+  async artistTracks(artistId: string, signal?: AbortSignal): Promise<TrackPage> {
     const payload = await request(
       'artists/tracks',
-      {
-        id: artistId,
-        limit: String(PAGE_SIZE),
-        offset: String(page * PAGE_SIZE),
-      },
+      { id: artistId, limit: '1' },
       signal
     );
     // This endpoint nests tracks under the artist rather than returning them flat.
@@ -406,7 +411,10 @@ export const JamendoClient = {
         artist_id: track.artist_id ?? artistEntry.id,
       }));
     });
-    return toPage(flattened, PAGE_SIZE);
+    return {
+      tracks: flattened.map(mapTrack).filter((track): track is MusicTrack => track !== null),
+      hasMore: false,
+    };
   },
 
   /** Tracks for a genre/mood tag, e.g. `rock`, `chillout`. */
