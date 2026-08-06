@@ -10,6 +10,12 @@ web-build/
 expo-env.d.ts
 
 # Native
+# android/ and ios/ are generated from app.json by `expo prebuild` (CNG).
+# Keeping them out of git makes app.json the single source of truth — a
+# committed copy silently goes stale as plugin config changes.
+# Regenerate locally with: npx expo prebuild --clean
+/android
+/ios
 .kotlin/
 *.orig.*
 *.jks
