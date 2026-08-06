@@ -1,5 +1,5 @@
 import { MusicTrack } from '../types/MusicTypes';
-import { makeTrackId } from '../utils/trackId';
+import { makeTrackId, nativeIdOf } from '../utils/trackId';
 import { StorageService } from './StorageService';
 
 /**
@@ -30,6 +30,27 @@ export const PAGE_SIZE = 50;
 const CACHE_PREFIX = 'jamendoCache';
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
+/**
+ * Jamendo intermittently answers `success` with an empty result set for a
+ * query that returns data moments later — measured at roughly one call in
+ * three on 2026-08-06, on plain popular-tracks listings as well as id
+ * lookups. Left alone, that surfaces as "no results" at random.
+ *
+ * So an empty response is retried rather than believed, and never written to
+ * the cache: a cached flake would pin the empty answer for the whole TTL.
+ */
+const EMPTY_RESPONSE_RETRIES = 2;
+const RETRY_DELAY_MS = 350;
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Enough tags to characterise a track without narrowing the match to nothing.
+ * `fuzzytags` is an OR search, so more tags widens rather than narrows — but
+ * past a handful the ranking drifts away from what the seed actually sounded like.
+ */
+const MAX_SEED_TAGS = 5;
+
 export class JamendoConfigError extends Error {
   constructor() {
     super(
@@ -56,6 +77,14 @@ interface JamendoTrackPayload {
   artist_name?: string;
   album_name?: string;
   duration?: number; // seconds
+  artist_id?: string | number;
+  musicinfo?: {
+    tags?: {
+      genres?: string[];
+      instruments?: string[];
+      vartags?: string[];
+    };
+  };
   audio?: string;
   audiodownload?: string;
   audiodownload_allowed?: boolean;
@@ -107,7 +136,11 @@ export const mapTrack = (payload: JamendoTrackPayload): MusicTrack | null => {
     duration: toMs(payload.duration),
     uri: payload.audio,
     albumArt: payload.image || payload.album_image || undefined,
-    sourceUrl: payload.shareurl || payload.shorturl || undefined,
+    artistId: payload.artist_id === undefined ? undefined : String(payload.artist_id),
+    // The artist-tracks endpoint nests tracks and omits `shareurl`, but the
+    // backlink is contractually required, so fall back to the canonical track
+    // page — verified to be exactly the form `shareurl` returns.
+    sourceUrl: payload.shareurl || payload.shorturl || `https://www.jamendo.com/track/${payload.id}`,
     licenseUrl: payload.license_ccurl || undefined,
     downloadAllowed,
     // Empty string when the artist has opted out, so only keep a real URL —
@@ -147,26 +180,11 @@ const writeCache = async (key: string, payload: JamendoTrackPayload[]): Promise<
  * @param signal Abort signal — the search hook uses it to cancel superseded
  *               keystrokes so a slow earlier response can't overwrite newer results.
  */
-const request = async (
+const fetchOnce = async (
   path: string,
-  params: Record<string, string>,
+  query: URLSearchParams,
   signal?: AbortSignal
 ): Promise<JamendoTrackPayload[]> => {
-  const clientId = getClientId();
-  if (!clientId) throw new JamendoConfigError();
-
-  const cacheKey = cacheKeyFor(path, params);
-  const cached = await readCache(cacheKey);
-  if (cached) return cached;
-
-  const query = new URLSearchParams({
-    client_id: clientId,
-    format: 'json',
-    audioformat: AUDIO_FORMAT,
-    imagesize: IMAGE_SIZE,
-    ...params,
-  });
-
   let response: Response;
   try {
     response = await fetch(`${API_BASE}/${path}/?${query.toString()}`, { signal });
@@ -195,8 +213,45 @@ const request = async (
     throw new JamendoRequestError(body.headers.error_message || 'Jamendo rejected the request.');
   }
 
-  const results = body.results ?? [];
-  await writeCache(cacheKey, results);
+  return body.results ?? [];
+};
+
+const request = async (
+  path: string,
+  params: Record<string, string>,
+  signal?: AbortSignal
+): Promise<JamendoTrackPayload[]> => {
+  const clientId = getClientId();
+  if (!clientId) throw new JamendoConfigError();
+
+  const cacheKey = cacheKeyFor(path, params);
+  const cached = await readCache(cacheKey);
+  if (cached) return cached;
+
+  const query = new URLSearchParams({
+    client_id: clientId,
+    format: 'json',
+    audioformat: AUDIO_FORMAT,
+    imagesize: IMAGE_SIZE,
+    ...params,
+  });
+
+  let results = await fetchOnce(path, query, signal);
+
+  // An empty result is more often a Jamendo hiccup than a real absence, so
+  // ask again before believing it. A genuinely empty query costs the extra
+  // calls, which is an acceptable trade against showing "no results" at random.
+  for (let attempt = 0; results.length === 0 && attempt < EMPTY_RESPONSE_RETRIES; attempt++) {
+    if (signal?.aborted) return results;
+    await delay(RETRY_DELAY_MS);
+    if (signal?.aborted) return results;
+    results = await fetchOnce(path, query, signal);
+  }
+
+  // Never cache an empty result: a cached flake would pin it for the full TTL.
+  if (results.length > 0) {
+    await writeCache(cacheKey, results);
+  }
   return results;
 };
 
@@ -263,6 +318,95 @@ export const JamendoClient = {
       signal
     );
     return toPage(payload, PAGE_SIZE);
+  },
+
+  /**
+   * The descriptive tags Jamendo holds for a track — the seed for smart shuffle.
+   */
+  async trackTags(nativeTrackId: string, signal?: AbortSignal): Promise<string[]> {
+    const payload = await request(
+      'tracks',
+      { id: nativeTrackId, include: 'musicinfo', limit: '1' },
+      signal
+    );
+
+    const tags = payload[0]?.musicinfo?.tags;
+    if (!tags) return [];
+
+    // Genres first because they discriminate most, then moods. Instruments are
+    // left out: "synthesizer" matches half the catalogue and washes the
+    // recommendation out.
+    return [...(tags.genres ?? []), ...(tags.vartags ?? [])]
+      .map(tag => tag.trim())
+      .filter(Boolean)
+      .slice(0, MAX_SEED_TAGS);
+  },
+
+  /**
+   * Tracks resembling a seed track, used by smart shuffle.
+   *
+   * Built on tags rather than Jamendo's `/tracks/similar` endpoint. That
+   * endpoint is documented and answers `success`, but returns zero results for
+   * every track tested (2026-08-06) — it appears to be decommissioned. Tags
+   * come from `include=musicinfo` and are matched with `fuzzytags`, which is an
+   * OR search that ranks full matches first, so the closest things surface at
+   * the top and the tail degrades gracefully.
+   *
+   * Costs two requests per refill instead of one; against 35,000/month, and
+   * refilling roughly every ten tracks, that is not worth optimising.
+   */
+  async similarTracks(
+    nativeTrackId: string,
+    options: { limit?: number } = {},
+    signal?: AbortSignal
+  ): Promise<MusicTrack[]> {
+    const { limit = 30 } = options;
+
+    const tags = await this.trackTags(nativeTrackId, signal);
+    // No tags means nothing to reason from. An arbitrary popular track would
+    // be worse than simply not extending the queue.
+    if (tags.length === 0) return [];
+
+    const payload = await request(
+      'tracks',
+      {
+        fuzzytags: tags.join('+'),
+        limit: String(limit),
+        order: 'popularity_month',
+      },
+      signal
+    );
+
+    return payload
+      .map(mapTrack)
+      .filter((track): track is MusicTrack => track !== null)
+      .filter(track => nativeIdOf(track.id) !== nativeTrackId);
+  },
+
+  /** Everything by one artist, for the artist page. */
+  async artistTracks(artistId: string, page = 0, signal?: AbortSignal): Promise<TrackPage> {
+    const payload = await request(
+      'artists/tracks',
+      {
+        id: artistId,
+        limit: String(PAGE_SIZE),
+        offset: String(page * PAGE_SIZE),
+      },
+      signal
+    );
+    // This endpoint nests tracks under the artist rather than returning them flat.
+    const flattened = payload.flatMap(entry => {
+      const artistEntry = entry as JamendoTrackPayload & {
+        name?: string;
+        tracks?: JamendoTrackPayload[];
+      };
+      return (artistEntry.tracks ?? []).map(track => ({
+        ...track,
+        artist_name: track.artist_name ?? artistEntry.name,
+        artist_id: track.artist_id ?? artistEntry.id,
+      }));
+    });
+    return toPage(flattened, PAGE_SIZE);
   },
 
   /** Tracks for a genre/mood tag, e.g. `rock`, `chillout`. */

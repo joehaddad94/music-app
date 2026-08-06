@@ -98,6 +98,106 @@ describe('mapTrack', () => {
   it('carries the licence url through for the attribution UI', () => {
     expect(mapTrack(payload()).licenseUrl).toBe('http://creativecommons.org/licenses/by-nc-nd/3.0/');
   });
+
+  it('falls back to the canonical track page when shareurl is absent', () => {
+    // The artist-tracks endpoint nests tracks and omits shareurl, but the
+    // backlink is contractually required, so it can never be undefined.
+    const track = mapTrack(payload({ shareurl: undefined, shorturl: undefined }));
+
+    expect(track.sourceUrl).toBe('https://www.jamendo.com/track/1234');
+  });
+
+  it('carries the artist id so the artist page can be reached', () => {
+    expect(mapTrack(payload({ artist_id: 442045 })).artistId).toBe('442045');
+  });
+});
+
+describe('smart shuffle inputs', () => {
+  const withTags = (genres: string[], vartags: string[] = [], instruments: string[] = []) => ({
+    ...payload(),
+    musicinfo: { tags: { genres, vartags, instruments } },
+  });
+
+  it('seeds from genres and moods but not instruments', () => {
+    // "synthesizer" matches half the catalogue and washes the result out.
+    mockFetch.mockReturnValue(respondWith([withTags(['lofi'], ['peaceful'], ['synthesizer'])]));
+
+    return JamendoClient.trackTags('1593988').then((tags: string[]) => {
+      expect(tags).toEqual(['lofi', 'peaceful']);
+    });
+  });
+
+  it('caps the number of seed tags', async () => {
+    mockFetch.mockReturnValue(
+      respondWith([withTags(['a', 'b', 'c', 'd'], ['e', 'f', 'g'])])
+    );
+
+    expect(await JamendoClient.trackTags('1')).toHaveLength(5);
+  });
+
+  it('returns nothing for a track with no tags at all', async () => {
+    mockFetch.mockReturnValue(respondWith([payload()]));
+
+    expect(await JamendoClient.trackTags('1')).toEqual([]);
+  });
+
+  it('does not guess when the seed has no tags to reason from', async () => {
+    mockFetch.mockReturnValue(respondWith([payload()]));
+
+    const results = await JamendoClient.similarTracks('1593988');
+
+    // An arbitrary popular track would be worse than not extending the queue.
+    expect(results).toEqual([]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('searches on the seed tags and drops the seed itself from the results', async () => {
+    mockFetch
+      .mockReturnValueOnce(respondWith([withTags(['lofi'], ['peaceful'])]))
+      .mockReturnValueOnce(
+        respondWith([payload({ id: '1593988' }), payload({ id: '999', name: 'Other' })])
+      );
+
+    const results = await JamendoClient.similarTracks('1593988');
+
+    expect(results.map((t: { id: string }) => t.id)).toEqual(['jamendo:999']);
+    expect(mockFetch.mock.calls[1][0]).toContain('fuzzytags=lofi%2Bpeaceful');
+  });
+});
+
+describe('artistTracks', () => {
+  it('flattens tracks nested under the artist and inherits the artist name', async () => {
+    mockFetch.mockReturnValue(
+      respondWith([
+        {
+          id: '442045',
+          name: 'Joystock',
+          tracks: [
+            { id: '1', name: 'One', audio: 'https://audio/1', duration: 100 },
+            { id: '2', name: 'Two', audio: 'https://audio/2', duration: 200 },
+          ],
+        },
+      ])
+    );
+
+    const page = await JamendoClient.artistTracks('442045');
+
+    expect(page.tracks).toHaveLength(2);
+    expect(page.tracks[0]).toMatchObject({
+      id: 'jamendo:1',
+      // Nested tracks carry no artist_name of their own.
+      artist: 'Joystock',
+      artistId: '442045',
+    });
+  });
+
+  it('copes with an artist that has no tracks', async () => {
+    mockFetch.mockReturnValue(respondWith([{ id: '1', name: 'Nobody' }]));
+
+    const page = await JamendoClient.artistTracks('1');
+
+    expect(page.tracks).toEqual([]);
+  });
 });
 
 describe('requests', () => {
@@ -184,6 +284,40 @@ describe('requests', () => {
     expect(url).toContain('audioformat=mp32');
     expect(url).toContain('action=stream');
     expect(url).not.toContain('from=');
+  });
+
+  it('retries an empty response rather than believing it', async () => {
+    // Jamendo intermittently answers success-with-no-results for a query that
+    // works moments later; taken at face value that shows as "no results".
+    mockFetch
+      .mockReturnValueOnce(respondWith([]))
+      .mockReturnValueOnce(respondWith([payload()]));
+
+    const page = await JamendoClient.popularTracks();
+
+    expect(page.tracks).toHaveLength(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up after a bounded number of retries', async () => {
+    mockFetch.mockReturnValue(respondWith([]));
+
+    const page = await JamendoClient.popularTracks();
+
+    expect(page.tracks).toEqual([]);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('never caches an empty result, so a flake cannot pin itself for the whole TTL', async () => {
+    mockFetch.mockReturnValue(respondWith([]));
+    await JamendoClient.popularTracks();
+    const afterFirst = mockFetch.mock.calls.length;
+
+    mockFetch.mockReturnValue(respondWith([payload()]));
+    const page = await JamendoClient.popularTracks();
+
+    expect(page.tracks).toHaveLength(1);
+    expect(mockFetch.mock.calls.length).toBeGreaterThan(afterFirst);
   });
 
   it('reports whether more pages may exist', async () => {
