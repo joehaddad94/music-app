@@ -90,8 +90,13 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const musicTracks = await musicService.scanMusicFiles();
+      const { tracks: musicTracks, notice } = await musicService.scanMusicFiles();
       setTracks(musicTracks);
+      // A scan can succeed but still have something worth saying (permission
+      // denied, sample data in use). Surface it rather than failing silently.
+      if (notice) {
+        setError(notice);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load music tracks');
     } finally {
@@ -105,8 +110,9 @@ export const MusicProvider: React.FC<MusicProviderProps> = ({ children }) => {
       const queue = tracksQueue || tracks;
       const trackIndex = queue.findIndex(t => t.id === track.id);
 
-      // Set up the queue
-      musicService.setQueue(queue, trackIndex >= 0 ? trackIndex : 0);
+      // Pass `track` as the shuffle anchor so that, with shuffle on, the
+      // shuffled queue is pinned around the track the user actually tapped.
+      musicService.setQueue(queue, trackIndex >= 0 ? trackIndex : 0, track);
 
       await musicService.loadTrack(track);
       await musicService.play();

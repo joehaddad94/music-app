@@ -1,9 +1,63 @@
-import { Audio } from 'expo-av';
+import {
+  AudioPlayer,
+  AudioSource,
+  AudioStatus,
+  createAudioPlayer,
+  setAudioModeAsync,
+} from 'expo-audio';
 import * as MediaLibrary from 'expo-media-library';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { MusicTrack, PlaybackState } from '../types/MusicTypes';
 
+/** Android 13 (API 33) is where POST_NOTIFICATIONS became a runtime permission. */
+const ANDROID_TIRAMISU = 33;
+
+/**
+ * Result of a library scan. `notice` carries a non-fatal, user-facing
+ * explanation (permission denied, sample data in use) so the UI can say what
+ * happened instead of silently substituting fake tracks.
+ */
+export interface ScanResult {
+  tracks: MusicTrack[];
+  notice: string | null;
+}
+
+/**
+ * expo-audio reports time in SECONDS; the rest of this app works in
+ * milliseconds (MediaLibrary durations, `formatDuration`, the 3s
+ * restart-vs-previous threshold). Convert only at the expo-audio boundary.
+ */
+const toMs = (seconds: number | undefined | null): number =>
+  typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0
+    ? Math.round(seconds * 1000)
+    : 0;
+
+const toSeconds = (milliseconds: number): number =>
+  Number.isFinite(milliseconds) && milliseconds > 0 ? milliseconds / 1000 : 0;
+
+const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
+
+type StatusSubscription = ReturnType<AudioPlayer['addListener']>;
+
 class MusicService {
-  private sound: Audio.Sound | null = null;
+  private player: AudioPlayer | null = null;
+  private statusSubscription: StatusSubscription | null = null;
+
+  /**
+   * Incremented on every load. A load that finishes after a newer one started
+   * is stale and must not clobber `currentTrack` — this is what makes rapid
+   * track tapping safe.
+   */
+  private loadToken = 0;
+
+  /** Guards against a duplicate `didJustFinish` double-advancing the queue. */
+  private advancing = false;
+
+  /** Ensures the Android notification permission is only ever prompted once. */
+  private notificationPermissionRequested = false;
+
+  private audioModeReady: Promise<void>;
+
   private playbackState: PlaybackState = {
     isPlaying: false,
     currentTrack: null,
@@ -19,18 +73,37 @@ class MusicService {
   private listeners: ((state: PlaybackState) => void)[] = [];
 
   constructor() {
-    this.initializeAudio();
+    this.audioModeReady = this.initializeAudio();
+  }
+
+  private async initializeAudio(): Promise<void> {
+    try {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        // Keeps playback alive when the app is backgrounded. Paired with the
+        // iOS `UIBackgroundModes: ["audio"]` entitlement and the Android
+        // foreground-service permissions declared in app.json.
+        shouldPlayInBackground: true,
+        interruptionMode: 'duckOthers',
+        shouldRouteThroughEarpiece: false,
+        allowsRecording: false,
+      });
+    } catch (error) {
+      console.error('Failed to initialize audio mode:', error);
+    }
   }
 
   private getMockMusicData(): MusicTrack[] {
-    // Mock data for testing when permissions are not available
+    // Sample tracks used only in development when the media library is
+    // unavailable (for example, running in Expo Go without a dev build).
+    // These stream from the network and are never shown in a release build.
     return [
       {
         id: 'mock-1',
         title: 'Summer Breeze',
         artist: 'The Relaxers',
         album: 'Chill Vibes Vol. 1',
-        duration: 234000, // 3:54
+        duration: 234000,
         uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
       },
       {
@@ -38,7 +111,7 @@ class MusicService {
         title: 'Electric Dreams',
         artist: 'Synth Masters',
         album: 'Digital Waves',
-        duration: 198000, // 3:18
+        duration: 198000,
         uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
       },
       {
@@ -46,7 +119,7 @@ class MusicService {
         title: 'Midnight Jazz',
         artist: 'Cool Cats Quartet',
         album: 'Late Night Sessions',
-        duration: 267000, // 4:27
+        duration: 267000,
         uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
       },
       {
@@ -54,7 +127,7 @@ class MusicService {
         title: 'Mountain Echo',
         artist: 'Nature Sounds',
         album: 'Peaceful Landscapes',
-        duration: 312000, // 5:12
+        duration: 312000,
         uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
       },
       {
@@ -62,7 +135,7 @@ class MusicService {
         title: 'Urban Rhythm',
         artist: 'City Beats',
         album: 'Street Life',
-        duration: 189000, // 3:09
+        duration: 189000,
         uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
       },
       {
@@ -70,7 +143,7 @@ class MusicService {
         title: 'Ocean Waves',
         artist: 'Ambient Collective',
         album: 'Serenity',
-        duration: 276000, // 4:36
+        duration: 276000,
         uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
       },
       {
@@ -78,7 +151,7 @@ class MusicService {
         title: 'Rock Anthem',
         artist: 'The Thunder',
         album: 'Greatest Hits',
-        duration: 243000, // 4:03
+        duration: 243000,
         uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3',
       },
       {
@@ -86,108 +159,107 @@ class MusicService {
         title: 'Classical Suite',
         artist: 'Orchestra Ensemble',
         album: 'Timeless Classics',
-        duration: 298000, // 4:58
+        duration: 298000,
         uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
       },
     ];
   }
 
-  private async initializeAudio() {
-    try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        staysActiveInBackground: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-    } catch (error) {
-      console.error('Failed to initialize audio:', error);
-    }
-  }
-
   async requestPermissions(): Promise<boolean> {
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-        console.warn('Media library permission denied. Status:', status);
-      }
-      return status === 'granted';
-    } catch (error: any) {
-      console.error('Permission request failed:', error);
-
-      // Check if this is an Expo Go limitation
-      if (error?.message?.includes('not declared in AndroidManifest')) {
-        console.error('⚠️  Expo Go Limitation: This app requires a development build to access the full media library.');
-        console.error('📱 To test with full functionality, create a development build:');
-        console.error('   npx expo run:android');
-        console.error('   or follow: https://docs.expo.dev/develop/development-builds/create-a-build/');
-      }
-
-      return false;
-    }
+    // Ask only for audio. Without the granular list this requests photo and
+    // video access too, so the system prompt would say "photos and videos" —
+    // alarming, and irrelevant for a music player. Mirrors the
+    // `granularPermissions: ["audio"]` setting for the plugin in app.json.
+    const { status } = await MediaLibrary.requestPermissionsAsync(false, ['audio']);
+    return status === 'granted';
   }
 
-  async scanMusicFiles(): Promise<MusicTrack[]> {
+  /**
+   * Scans the device for audio files.
+   *
+   * Never silently substitutes sample data: if permission is denied the caller
+   * gets an empty list plus a `notice` explaining why, and only a development
+   * build falls back to the sample tracks (clearly labelled as such).
+   */
+  async scanMusicFiles(): Promise<ScanResult> {
+    let hasPermission: boolean;
     try {
-      const hasPermission = await this.requestPermissions();
-      if (!hasPermission) {
-        console.warn('⚠️  Using mock data for testing. To access your real music library, create a development build.');
-        console.log('📱 Run: npx expo run:android');
-        return this.getMockMusicData();
+      hasPermission = await this.requestPermissions();
+    } catch (error: any) {
+      // Expo Go cannot declare the media permissions this app needs.
+      if (error?.message?.includes('not declared in AndroidManifest')) {
+        if (__DEV__) {
+          return {
+            tracks: this.getMockMusicData(),
+            notice:
+              'Expo Go can’t read your media library — showing sample tracks. Run "npx expo run:android" for a development build.',
+          };
+        }
+        throw new Error('This build is missing the media library permissions required to scan for music.');
       }
-
-      // Get audio files with increased limit
-      const media = await MediaLibrary.getAssetsAsync({
-        mediaType: MediaLibrary.MediaType.audio,
-        first: 5000, // Increased limit to get more files
-        sortBy: [MediaLibrary.SortBy.creationTime],
-      });
-
-      // Filter for audio files (including MP4 audio)
-      const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.mp4'];
-      const audioAssets = media.assets.filter(asset => {
-        const filename = asset.filename.toLowerCase();
-        return audioExtensions.some(ext => filename.endsWith(ext));
-      });
-
-      console.log(`Found ${audioAssets.length} audio files out of ${media.assets.length} total media files`);
-
-      // If no real music files found, offer mock data as fallback
-      if (audioAssets.length === 0) {
-        console.warn('⚠️  No music files found on device. Using mock data for testing.');
-        return this.getMockMusicData();
-      }
-
-      // Build tracks synchronously. We deliberately do NOT fetch album art
-      // per-track here: it previously issued one MediaLibrary query per file
-      // (thousands on a large library) and queried the photo album bucket,
-      // which never matches audio anyway. The UI falls back to a note icon.
-      const tracks: MusicTrack[] = audioAssets.map((asset) => ({
-        id: asset.id,
-        title: asset.filename.replace(/\.[^/.]+$/, ''), // Remove file extension
-        artist: 'Unknown Artist',
-        album: 'Unknown Album',
-        duration: asset.duration && asset.duration > 0 ? asset.duration * 1000 : 0,
-        uri: asset.uri,
-      }));
-
-      return tracks;
-    } catch (error) {
-      console.error('Failed to scan music files:', error);
-      console.warn('⚠️  Falling back to mock data due to error.');
-      return this.getMockMusicData();
+      throw error;
     }
+
+    if (!hasPermission) {
+      if (__DEV__) {
+        return {
+          tracks: this.getMockMusicData(),
+          notice: 'Media library permission denied — showing sample tracks (development build only).',
+        };
+      }
+      return {
+        tracks: [],
+        notice: 'Media library permission denied. Grant music access in Settings to see your library.',
+      };
+    }
+
+    const media = await MediaLibrary.getAssetsAsync({
+      mediaType: MediaLibrary.MediaType.audio,
+      first: 5000,
+      sortBy: [MediaLibrary.SortBy.creationTime],
+    });
+
+    const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.mp4'];
+    const audioAssets = media.assets.filter(asset => {
+      const filename = asset.filename.toLowerCase();
+      return audioExtensions.some(ext => filename.endsWith(ext));
+    });
+
+    // Build tracks synchronously. We deliberately do NOT fetch album art
+    // per-track here: it previously issued one MediaLibrary query per file
+    // (thousands on a large library) and queried the photo album bucket,
+    // which never matches audio anyway. The UI falls back to a note icon.
+    const tracks: MusicTrack[] = audioAssets.map(asset => ({
+      id: asset.id,
+      title: asset.filename.replace(/\.[^/.]+$/, ''),
+      artist: 'Unknown Artist',
+      album: 'Unknown Album',
+      duration: asset.duration && asset.duration > 0 ? asset.duration * 1000 : 0,
+      uri: asset.uri,
+    }));
+
+    // An empty library is not an error — the UI has a dedicated empty state.
+    return { tracks, notice: null };
   }
 
   // Queue Management
-  setQueue(tracks: MusicTrack[], startIndex: number = 0): void {
+
+  /**
+   * Replaces the queue.
+   *
+   * `anchorTrack` is the track that is about to play. When shuffle is on the
+   * shuffled queue is pinned around this track — passing it explicitly is what
+   * keeps `currentIndex` pointing at the right entry. Without it the shuffle
+   * would pin around the *previously* playing track and next/previous would
+   * navigate from the wrong position.
+   */
+  setQueue(tracks: MusicTrack[], startIndex: number = 0, anchorTrack?: MusicTrack | null): void {
     this.playbackState.queue = tracks;
     this.playbackState.originalQueue = [...tracks];
     this.playbackState.currentIndex = startIndex;
 
     if (this.playbackState.shuffleMode) {
-      this.shuffleQueue();
+      this.shuffleQueue(anchorTrack ?? tracks[startIndex] ?? this.playbackState.currentTrack);
     }
 
     this.notifyListeners();
@@ -202,19 +274,20 @@ class MusicService {
     return shuffled;
   }
 
-  private shuffleQueue(): void {
-    if (this.playbackState.queue.length === 0) return;
+  /** Shuffles the queue, keeping `anchor` (if present) at index 0. */
+  private shuffleQueue(anchor: MusicTrack | null | undefined): void {
+    if (this.playbackState.originalQueue.length === 0) return;
 
-    const currentTrack = this.playbackState.currentTrack;
     const shuffled = this.shuffleArray(this.playbackState.originalQueue);
 
-    // If there's a current track, make sure it's first in the shuffled queue
-    if (currentTrack) {
-      const currentIndex = shuffled.findIndex(t => t.id === currentTrack.id);
-      if (currentIndex > 0) {
-        [shuffled[0], shuffled[currentIndex]] = [shuffled[currentIndex], shuffled[0]];
+    if (anchor) {
+      const anchorIndex = shuffled.findIndex(t => t.id === anchor.id);
+      if (anchorIndex > 0) {
+        [shuffled[0], shuffled[anchorIndex]] = [shuffled[anchorIndex], shuffled[0]];
       }
-      this.playbackState.currentIndex = 0;
+      if (anchorIndex >= 0) {
+        this.playbackState.currentIndex = 0;
+      }
     }
 
     this.playbackState.queue = shuffled;
@@ -226,7 +299,6 @@ class MusicService {
     const currentTrack = this.playbackState.currentTrack;
     this.playbackState.queue = [...this.playbackState.originalQueue];
 
-    // Find the current track in the original queue
     if (currentTrack) {
       const index = this.playbackState.queue.findIndex(t => t.id === currentTrack.id);
       this.playbackState.currentIndex = index >= 0 ? index : 0;
@@ -237,7 +309,7 @@ class MusicService {
     this.playbackState.shuffleMode = !this.playbackState.shuffleMode;
 
     if (this.playbackState.shuffleMode) {
-      this.shuffleQueue();
+      this.shuffleQueue(this.playbackState.currentTrack);
     } else {
       this.unshuffleQueue();
     }
@@ -247,6 +319,11 @@ class MusicService {
 
   setRepeatMode(mode: 'none' | 'one' | 'all'): void {
     this.playbackState.repeatMode = mode;
+    // Repeat-one uses the native loop flag so the track restarts gaplessly
+    // instead of round-tripping through a JS-driven reload.
+    if (this.player) {
+      this.player.loop = mode === 'one';
+    }
     this.notifyListeners();
   }
 
@@ -255,14 +332,12 @@ class MusicService {
 
     let nextIndex = this.playbackState.currentIndex + 1;
 
-    // Handle repeat modes
     if (nextIndex >= this.playbackState.queue.length) {
       if (this.playbackState.repeatMode === 'all') {
-        nextIndex = 0; // Loop to start
+        nextIndex = 0;
       } else if (this.playbackState.repeatMode === 'one') {
-        nextIndex = this.playbackState.currentIndex; // Replay current
+        nextIndex = this.playbackState.currentIndex;
       } else {
-        // No more tracks and no repeat
         await this.stop();
         return;
       }
@@ -278,7 +353,7 @@ class MusicService {
   }
 
   async playPrevious(): Promise<void> {
-    // If we're more than 3 seconds into the song, restart it
+    // More than 3 seconds in, "previous" restarts the current track.
     if (this.playbackState.position > 3000) {
       await this.seekTo(0);
       return;
@@ -288,12 +363,11 @@ class MusicService {
 
     let prevIndex = this.playbackState.currentIndex - 1;
 
-    // Handle wraparound for repeat all
     if (prevIndex < 0) {
       if (this.playbackState.repeatMode === 'all') {
         prevIndex = this.playbackState.queue.length - 1;
       } else {
-        prevIndex = 0; // Stay at first track
+        prevIndex = 0;
       }
     }
 
@@ -306,101 +380,174 @@ class MusicService {
     }
   }
 
-  async loadTrack(track: MusicTrack): Promise<void> {
+  /**
+   * Handles a status tick from the native player. Bound as a field so it can be
+   * subscribed/unsubscribed without losing `this`.
+   */
+  private handleStatusUpdate = (status: AudioStatus): void => {
+    this.playbackState.position = toMs(status.currentTime);
+
+    // Prefer the player's reported duration, but keep the value scanned from
+    // the media library while the track is still loading (duration reads 0).
+    const reportedDuration = toMs(status.duration);
+    if (reportedDuration > 0) {
+      this.playbackState.duration = reportedDuration;
+    }
+
+    this.playbackState.isPlaying = status.playing;
+
+    // `loop` covers repeat-one natively, so only advance when not looping.
+    if (status.didJustFinish && !status.loop) {
+      void this.handleTrackFinished();
+    }
+
+    this.notifyListeners();
+  };
+
+  private async handleTrackFinished(): Promise<void> {
+    if (this.advancing) return;
+    this.advancing = true;
     try {
-      if (this.sound) {
-        await this.sound.unloadAsync();
-      }
+      await this.playNext();
+    } catch (error) {
+      console.error('Failed to advance to next track:', error);
+    } finally {
+      this.advancing = false;
+    }
+  }
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: track.uri },
-        { shouldPlay: false, volume: this.playbackState.volume, progressUpdateIntervalMillis: 500 }
+  /**
+   * Returns the shared player, creating it on first use. Subsequent loads
+   * reuse the same native object via `replace()` so the audio session — and
+   * with it background playback and the lock screen — survives track changes.
+   */
+  private acquirePlayer(source: AudioSource): AudioPlayer {
+    if (!this.player) {
+      this.player = createAudioPlayer(source, {
+        updateInterval: 500,
+        // Keeps the audio session alive between tracks so backgrounded
+        // playback isn't torn down on every transition.
+        keepAudioSessionActive: true,
+      });
+      this.statusSubscription = this.player.addListener(
+        'playbackStatusUpdate',
+        this.handleStatusUpdate
       );
+    } else {
+      this.player.replace(source);
+    }
+    return this.player;
+  }
 
-      this.sound = sound;
+  async loadTrack(track: MusicTrack): Promise<void> {
+    await this.audioModeReady;
+
+    const token = ++this.loadToken;
+
+    try {
+      const player = this.acquirePlayer({ uri: track.uri });
+
+      // A newer load started while this one was in flight — abandon this one.
+      if (token !== this.loadToken) return;
+
+      // `replace()` resets per-source state, so reapply our settings.
+      player.volume = this.playbackState.volume;
+      player.loop = this.playbackState.repeatMode === 'one';
+
       this.playbackState.currentTrack = track;
       this.playbackState.duration = track.duration;
+      this.playbackState.position = 0;
 
-      // Set up status update listener with track end detection
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded) {
-          this.playbackState.position = status.positionMillis || 0;
-          this.playbackState.duration = status.durationMillis || 0;
-          this.playbackState.isPlaying = status.isPlaying || false;
-
-          // Auto-play next track when current track finishes
-          if (status.didJustFinish && !status.isLooping) {
-            if (this.playbackState.repeatMode === 'one') {
-              // Replay the same track
-              this.play();
-            } else {
-              // Play next track
-              this.playNext();
-            }
-          }
-
-          this.notifyListeners();
-        }
-      });
+      // Publish now-playing info to the lock screen / notification shade.
+      player.setActiveForLockScreen(
+        true,
+        {
+          title: track.title,
+          artist: track.artist,
+          albumTitle: track.album,
+          artworkUrl: track.albumArt,
+        },
+        { showSeekForward: true, showSeekBackward: true }
+      );
 
       this.notifyListeners();
     } catch (error) {
       console.error('Failed to load track:', error);
+      throw error instanceof Error ? error : new Error('Failed to load track');
+    }
+  }
+
+  /**
+   * On Android 13+ the media-playback notification (and with it the lock
+   * screen controls) needs POST_NOTIFICATIONS. Requested lazily on first play
+   * rather than at launch, so the prompt has obvious context. Fire-and-forget:
+   * playback must not wait on the dialog, and a refusal only costs the
+   * notification, not the audio.
+   */
+  private async ensureNotificationPermission(): Promise<void> {
+    if (this.notificationPermissionRequested) return;
+    this.notificationPermissionRequested = true;
+
+    if (Platform.OS !== 'android') return;
+    if (typeof Platform.Version !== 'number' || Platform.Version < ANDROID_TIRAMISU) return;
+
+    try {
+      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    } catch (error) {
+      console.warn('Notification permission request failed:', error);
     }
   }
 
   async play(): Promise<void> {
-    if (this.sound) {
-      try {
-        await this.sound.playAsync();
-      } catch (error) {
-        console.error('Failed to play:', error);
-      }
-    }
+    await this.audioModeReady;
+    void this.ensureNotificationPermission();
+    this.player?.play();
   }
 
   async pause(): Promise<void> {
-    if (this.sound) {
-      try {
-        await this.sound.pauseAsync();
-      } catch (error) {
-        console.error('Failed to pause:', error);
-      }
-    }
+    this.player?.pause();
   }
 
+  /**
+   * Stops playback and tears down the now-playing state. Clearing
+   * `currentTrack` is what dismisses the mini-player when a queue runs out
+   * with repeat off — previously it lingered showing a track that had ended.
+   */
   async stop(): Promise<void> {
-    if (this.sound) {
-      try {
-        await this.sound.stopAsync();
-        this.playbackState.position = 0;
-        this.notifyListeners();
-      } catch (error) {
-        console.error('Failed to stop:', error);
+    try {
+      if (this.player) {
+        this.player.pause();
+        await this.player.seekTo(0);
+        this.player.clearLockScreenControls();
       }
+    } catch (error) {
+      console.error('Failed to stop:', error);
     }
+
+    this.playbackState.isPlaying = false;
+    this.playbackState.currentTrack = null;
+    this.playbackState.position = 0;
+    this.playbackState.duration = 0;
+    this.playbackState.currentIndex = -1;
+    this.notifyListeners();
   }
 
+  /** @param position Position in milliseconds. */
   async seekTo(position: number): Promise<void> {
-    if (this.sound) {
-      try {
-        await this.sound.setPositionAsync(position);
-      } catch (error) {
-        console.error('Failed to seek:', error);
-      }
-    }
+    if (!this.player) return;
+    await this.player.seekTo(toSeconds(position));
+    this.playbackState.position = Math.max(0, position);
+    this.notifyListeners();
   }
 
+  /** @param volume 0.0 – 1.0 */
   async setVolume(volume: number): Promise<void> {
-    if (this.sound) {
-      try {
-        await this.sound.setVolumeAsync(volume);
-        this.playbackState.volume = volume;
-        this.notifyListeners();
-      } catch (error) {
-        console.error('Failed to set volume:', error);
-      }
+    const next = clamp01(volume);
+    this.playbackState.volume = next;
+    if (this.player) {
+      this.player.volume = next;
     }
+    this.notifyListeners();
   }
 
   addListener(listener: (state: PlaybackState) => void): void {
@@ -420,9 +567,17 @@ class MusicService {
   }
 
   async cleanup(): Promise<void> {
-    if (this.sound) {
-      await this.sound.unloadAsync();
-      this.sound = null;
+    this.statusSubscription?.remove();
+    this.statusSubscription = null;
+
+    if (this.player) {
+      try {
+        this.player.clearLockScreenControls();
+      } catch {
+        // The player may already be released; nothing to clear.
+      }
+      this.player.remove();
+      this.player = null;
     }
   }
 }
