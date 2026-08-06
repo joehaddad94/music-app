@@ -7,6 +7,7 @@ import { useLibrary } from '@/contexts/LibraryContext';
 import { useMusic } from '@/contexts/MusicContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDownloads } from '@/hooks/useDownloads';
+import { useRecentlyPlayed } from '@/hooks/useRecentlyPlayed';
 import { MusicTrack, Playlist } from '@/types/MusicTypes';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -20,6 +21,7 @@ export default function PlaylistsScreen() {
   const { tracks, playTrack } = useMusic();
   const { favorites, playlists, createPlaylist, deletePlaylist, getKnownTrack } = useLibrary();
   const { entries: downloads } = useDownloads();
+  const { tracks: recent } = useRecentlyPlayed();
   const [creating, setCreating] = useState(false);
 
   const downloadCount = downloads.length;
@@ -140,6 +142,34 @@ export default function PlaylistsScreen() {
             </View>
             <IconSymbol size={20} name="chevron.right" color={colors.icon} style={styles.chevron} />
           </TouchableOpacity>
+
+          {recent.length > 0 && (
+            <TouchableOpacity
+              style={[styles.playlistItem, { borderBottomColor: colors.border }]}
+              onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                playQueue(recent);
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Play recently played, ${recent.length} tracks`}
+            >
+              <View style={styles.playlistInfo}>
+                <View style={[styles.playlistIcon, { backgroundColor: colors.accent + '20' }]}>
+                  <IconSymbol size={24} name="clock" color={colors.accent} />
+                </View>
+                <View style={styles.playlistDetails}>
+                  <ThemedText type="defaultSemiBold" style={styles.playlistName}>
+                    Recently Played
+                  </ThemedText>
+                  <ThemedText type="default" style={styles.playlistCount}>
+                    {recent.length} {recent.length === 1 ? 'track' : 'tracks'}
+                  </ThemedText>
+                </View>
+              </View>
+              <IconSymbol size={20} name="play.fill" color={colors.icon} style={styles.chevron} />
+            </TouchableOpacity>
+          )}
         </ThemedView>
 
         <ThemedView style={styles.section}>

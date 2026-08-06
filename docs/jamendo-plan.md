@@ -14,7 +14,7 @@ git branch --show-current          # expect: fix/expo-audio-migration
 npm install
 npm run typecheck                  # expect: exit 0
 npx eslint .                       # expect: exit 0, zero warnings
-npm test                           # expect: 86/86 passing, 7 suites
+npm test                           # expect: 119/119 passing, 9 suites
 npx expo-doctor                    # expect: 17/17
 ```
 
@@ -281,26 +281,46 @@ needs `expo-network` or NetInfo — a new native dependency, and §2 says defer 
 stream failure surfaces as an error with a retry rather than being pre-empted. Revisit only
 if the UX genuinely needs connectivity state *before* making a request.
 
-### Pass 3 — Discover, artists, smart shuffle
+### Pass 3 — Discover, artists, smart shuffle — **DONE**
 
-- [ ] Discover content: popular (`order=popularity_total`, `buzzrate`, `listens`), browse
-      by genre (`tags`/`fuzzytags`)
-- [ ] Artist drill-down (`/artists`, `/artists/tracks`)
-- [ ] Recently played
-- [ ] **Smart shuffle** — `/tracks/similar`, single seed track ID, returns ranked results
-      with `score` (max 1). Supports `no_artist` / `no_album` exclusions to stop one artist
-      dominating.
-  - Seed from the current track; refill when the queue runs low
-  - Interleave ~2 known : 1 discovery so it still feels like the user's queue
-  - Drop results below a score threshold; exclude already-queued IDs
-  - Cache per seed ID
-  - **Control is tri-state only when the queue contains a seedable track.** Local-only
-    queue keeps today's two-state (off / shuffle) control — no greyed-out third state.
-    Mixed queue: smart stays available, seeding from the most recent Jamendo track; local
-    tracks stay in rotation but never seed. No seedable track ⇒ behaves as plain shuffle.
-  - `PlaybackState.shuffleMode` goes `boolean` → union type. Playback state is not
-    persisted, so no migration needed. Mirrors the existing `repeatMode` tri-state.
-  - Quota cost is negligible: ~1 request per 10 tracks played.
+Two API findings from this pass, both verified live on 2026-08-06 and both
+load-bearing:
+
+**`/tracks/similar` is dead.** It is documented, it answers `success`, and it returns zero
+results for every track tested — 9 attempts across 3 tracks, all empty. Smart shuffle is
+therefore built on tags instead: `include=musicinfo` on the seed, then `fuzzytags`, which
+is an OR search that ranks full matches first. Two requests per refill rather than one.
+Instruments are excluded from the seed tags — "synthesizer" matches half the catalogue.
+
+**The API intermittently returns empty results for valid queries.** A plain
+popular-tracks listing returned 0 results on 2 of 6 identical calls; id lookups flake
+similarly. Roughly one call in three. Untreated this shows up as Discover randomly
+displaying "no results". `JamendoClient.request` now retries an empty response twice
+before believing it, and **never caches an empty result** — a cached flake would pin the
+empty answer for the full 6-hour TTL. If Discover ever looks empty on a good connection,
+this is the first thing to suspect.
+
+#### What landed
+
+- [x] Discover content: popular and genre browsing — shipped in Pass 1
+- [x] Artist drill-down — `app/artist/[id].tsx`, reached by tapping the artist name in the
+      player. `/artists/tracks` nests tracks under the artist and **omits `shareurl`**, so
+      `mapTrack` falls back to `https://www.jamendo.com/track/<id>` — the backlink is
+      contractual and can never be undefined.
+- [x] Recently played — `services/RecentlyPlayed.ts`, capped at 30, written from
+      `MusicService.loadTrack` so auto-advance counts, surfaced on the Playlists tab
+- [x] **Smart shuffle** — `services/SmartShuffle.ts` plus `MusicService.setShuffleMode`
+  - Tag-based, not `/tracks/similar` (see above)
+  - Interleaves 2 known : 1 discovery; everything up to and including the current track is
+    left untouched, so turning it on cannot lose what you were about to hear
+  - Excludes already-queued ids; a failed lookup leaves the queue playing
+  - **Control is tri-state only when the queue holds a seedable track.** A local-only queue
+    cycles off → on → off, with no dead third state. A queue that loses its seedable tracks
+    degrades smart to plain shuffle.
+  - `PlaybackState.shuffleMode` is now `'off' | 'on' | 'smart'`. Playback state is not
+    persisted, so there was no migration.
+  - Marked in the UI with a dot on the shuffle icon rather than a different glyph — it is
+    still shuffle, just a stronger version.
 
 ---
 

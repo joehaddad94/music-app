@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import React, { memo, useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,9 +68,30 @@ const MusicPlayer: React.FC = memo(() => {
           <ThemedText type="subtitle" numberOfLines={1} style={styles.title}>
             {currentTrack.title}
           </ThemedText>
-          <ThemedText type="default" numberOfLines={1} style={styles.artist}>
-            {currentTrack.artist}
-          </ThemedText>
+          {currentTrack.artistId ? (
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: '/artist/[id]',
+                  params: { id: currentTrack.artistId as string, name: currentTrack.artist },
+                })
+              }
+              accessibilityRole="link"
+              accessibilityLabel={`More by ${currentTrack.artist}`}
+            >
+              <ThemedText
+                type="default"
+                numberOfLines={1}
+                style={[styles.artist, styles.artistLink, { color: colors.tint }]}
+              >
+                {currentTrack.artist}
+              </ThemedText>
+            </TouchableOpacity>
+          ) : (
+            <ThemedText type="default" numberOfLines={1} style={styles.artist}>
+              {currentTrack.artist}
+            </ThemedText>
+          )}
           {currentTrack.album && (
             <ThemedText type="defaultSemiBold" numberOfLines={1} style={styles.album}>
               {currentTrack.album}
@@ -174,6 +196,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.7,
     marginBottom: 2,
+  },
+  artistLink: {
+    opacity: 1,
+    fontWeight: '600',
   },
   album: {
     fontSize: 12,
