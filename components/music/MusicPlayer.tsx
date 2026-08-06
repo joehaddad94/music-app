@@ -11,6 +11,7 @@ import { IconSymbol } from '../ui/IconSymbol';
 import MusicControls from './MusicControls';
 import PlaylistPickerModal from './PlaylistPickerModal';
 import ProgressBar from './ProgressBar';
+import VolumeSlider from './VolumeSlider';
 
 const MusicPlayer: React.FC = memo(() => {
   const { playbackState, shouldShowPlayer } = useMusicPlayerDisplay();
@@ -95,6 +96,8 @@ const MusicPlayer: React.FC = memo(() => {
       </View>
 
       <ProgressBar />
+
+      <VolumeSlider />
 
       <MusicControls />
 

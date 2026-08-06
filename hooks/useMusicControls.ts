@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { useMusic } from '../contexts/MusicContext';
 
 export const useMusicControls = () => {
-  const { playbackState, playTrack, pause, play, setRepeatMode, toggleShuffle, playNext, playPrevious } = useMusic();
+  const { playbackState, pause, play, setRepeatMode, toggleShuffle, playNext, playPrevious } = useMusic();
 
   const handlePlayPause = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

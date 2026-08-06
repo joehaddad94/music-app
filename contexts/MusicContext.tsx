@@ -50,11 +50,12 @@ const initialPlaybackState: PlaybackState = {
 // `position` is intentionally excluded — it ticks ~2x/second and is served
 // through the separate PlaybackProgressContext so the track list and
 // controls don't re-render on every tick.
+// `volume` is excluded for the same reason: VolumeSlider owns it locally
+// while dragging and nothing else renders from it.
 const metaChanged = (a: PlaybackState, b: PlaybackState): boolean =>
   a.isPlaying !== b.isPlaying ||
   a.currentTrack?.id !== b.currentTrack?.id ||
   a.duration !== b.duration ||
-  a.volume !== b.volume ||
   a.repeatMode !== b.repeatMode ||
   a.shuffleMode !== b.shuffleMode ||
   a.currentIndex !== b.currentIndex ||
