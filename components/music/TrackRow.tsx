@@ -15,13 +15,19 @@ interface TrackRowProps {
   isCurrent: boolean;
   isPlaying: boolean;
   onPress: (track: MusicTrack) => void;
+  /**
+   * Streamed track that cannot be played right now — offline with no local
+   * copy. Dimmed and inert rather than hidden, so the list does not
+   * reshuffle itself the moment a connection drops.
+   */
+  unavailable?: boolean;
 }
 
 /**
  * One track in a list. Shared by the on-device library and Discover so a
  * streamed track and a local file look and behave identically.
  */
-const TrackRow: React.FC<TrackRowProps> = memo(({ track, isCurrent, isPlaying, onPress }) => {
+const TrackRow: React.FC<TrackRowProps> = memo(({ track, isCurrent, isPlaying, onPress, unavailable }) => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
@@ -31,11 +37,18 @@ const TrackRow: React.FC<TrackRowProps> = memo(({ track, isCurrent, isPlaying, o
         styles.trackItem,
         { borderBottomColor: colors.border },
         isCurrent && { backgroundColor: colors.tint + '15' },
+        unavailable && styles.unavailable,
       ]}
       onPress={() => onPress(track)}
       activeOpacity={0.7}
+      disabled={unavailable}
       accessibilityRole="button"
-      accessibilityLabel={`Play ${track.title} by ${track.artist}`}
+      accessibilityState={{ disabled: Boolean(unavailable) }}
+      accessibilityLabel={
+        unavailable
+          ? `${track.title} by ${track.artist}, unavailable offline`
+          : `Play ${track.title} by ${track.artist}`
+      }
     >
       <View style={styles.trackInfo}>
         <View style={[styles.albumArtContainer, { backgroundColor: colors.tint + '15' }]}>
@@ -143,6 +156,9 @@ const styles = StyleSheet.create({
   },
   playingIcon: {
     marginTop: 4,
+  },
+  unavailable: {
+    opacity: 0.4,
   },
 });
 

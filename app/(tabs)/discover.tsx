@@ -8,6 +8,8 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Colors } from '@/constants/Colors';
 import { useMusic } from '@/contexts/MusicContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useDownloads } from '@/hooks/useDownloads';
+import { useIsOffline } from '@/hooks/useIsOffline';
 import { useRemoteSearch } from '@/hooks/useRemoteSearch';
 import { BROWSE_TAGS, jamendoSource } from '@/services/MusicSources';
 import { MusicTrack } from '@/types/MusicTypes';
@@ -19,6 +21,8 @@ export default function DiscoverScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const { playbackState, playTrack } = useMusic();
+  const isOffline = useIsOffline();
+  const { isDownloaded } = useDownloads();
   const {
     query,
     setQuery,
@@ -49,9 +53,11 @@ export default function DiscoverScreen() {
         isCurrent={playbackState.currentTrack?.id === item.id}
         isPlaying={playbackState.isPlaying}
         onPress={handleTrackPress}
+        // A downloaded track plays from disk, so it stays available offline.
+        unavailable={isOffline && !isDownloaded(item.id)}
       />
     ),
-    [handleTrackPress, playbackState.currentTrack?.id, playbackState.isPlaying]
+    [handleTrackPress, playbackState.currentTrack?.id, playbackState.isPlaying, isOffline, isDownloaded]
   );
 
   const renderEmpty = () => {
@@ -92,6 +98,15 @@ export default function DiscoverScreen() {
           Discover
         </ThemedText>
       </ThemedView>
+
+      {isOffline && (
+        <ThemedView style={[styles.offlineBanner, { backgroundColor: colors.warning + '22' }]}>
+          <IconSymbol size={16} name="exclamationmark.triangle.fill" color={colors.warning} />
+          <ThemedText type="default" style={styles.offlineText}>
+            You’re offline. Downloaded tracks still play.
+          </ThemedText>
+        </ThemedView>
+      )}
 
       <SearchBar
         value={query}
@@ -193,6 +208,20 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  offlineText: {
+    fontSize: 13,
+    flexShrink: 1,
   },
   tagScroll: {
     flexGrow: 0,
