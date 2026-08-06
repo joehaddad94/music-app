@@ -50,6 +50,10 @@ const MAPPING = {
   'trash': 'delete',
   'ellipsis': 'more-horiz',
   'exclamationmark.triangle.fill': 'error-outline',
+  // Downloads
+  'arrow.down.circle': 'download-for-offline',
+  'checkmark.circle.fill': 'check-circle',
+  'arrow.down.circle.fill': 'download-for-offline',
 } as IconMapping;
 
 

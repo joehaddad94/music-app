@@ -6,8 +6,10 @@ import { Colors } from '@/constants/Colors';
 import { useLibrary } from '@/contexts/LibraryContext';
 import { useMusic } from '@/contexts/MusicContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useDownloads } from '@/hooks/useDownloads';
 import { MusicTrack, Playlist } from '@/types/MusicTypes';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +19,10 @@ export default function PlaylistsScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const { tracks, playTrack } = useMusic();
   const { favorites, playlists, createPlaylist, deletePlaylist, getKnownTrack } = useLibrary();
+  const { entries: downloads } = useDownloads();
   const [creating, setCreating] = useState(false);
+
+  const downloadCount = downloads.length;
 
   const trackMap = useMemo(() => new Map(tracks.map(t => [t.id, t])), [tracks]);
 
@@ -111,6 +116,29 @@ export default function PlaylistsScreen() {
               </View>
             </View>
             <IconSymbol size={20} name="play.fill" color={colors.icon} style={styles.chevron} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.playlistItem, { borderBottomColor: colors.border }]}
+            onPress={() => router.push('/downloads')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Downloads, ${downloadCount} offline ${downloadCount === 1 ? 'track' : 'tracks'}`}
+          >
+            <View style={styles.playlistInfo}>
+              <View style={[styles.playlistIcon, { backgroundColor: colors.success + '20' }]}>
+                <IconSymbol size={24} name="arrow.down.circle" color={colors.success} />
+              </View>
+              <View style={styles.playlistDetails}>
+                <ThemedText type="defaultSemiBold" style={styles.playlistName}>
+                  Downloads
+                </ThemedText>
+                <ThemedText type="default" style={styles.playlistCount}>
+                  {downloadCount} offline {downloadCount === 1 ? 'track' : 'tracks'}
+                </ThemedText>
+              </View>
+            </View>
+            <IconSymbol size={20} name="chevron.right" color={colors.icon} style={styles.chevron} />
           </TouchableOpacity>
         </ThemedView>
 

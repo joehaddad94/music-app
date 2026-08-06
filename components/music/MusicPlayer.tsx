@@ -9,6 +9,7 @@ import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 import { IconSymbol } from '../ui/IconSymbol';
 import { TrackAttribution } from './Attribution';
+import DownloadButton from './DownloadButton';
 import MusicControls from './MusicControls';
 import PlaylistPickerModal from './PlaylistPickerModal';
 import ProgressBar from './ProgressBar';
@@ -100,6 +101,7 @@ const MusicPlayer: React.FC = memo(() => {
           >
             <IconSymbol size={24} name="music.note.list" color={colors.icon} />
           </TouchableOpacity>
+          <DownloadButton track={currentTrack} />
         </View>
       </View>
 

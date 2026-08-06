@@ -14,7 +14,7 @@ git branch --show-current          # expect: fix/expo-audio-migration
 npm install
 npm run typecheck                  # expect: exit 0
 npx eslint .                       # expect: exit 0, zero warnings
-npm test                           # expect: 61/61 passing, 5 suites
+npm test                           # expect: 86/86 passing, 7 suites
 npx expo-doctor                    # expect: 17/17
 ```
 
@@ -258,17 +258,28 @@ targeted queries):
   therefore use `/tracks/file/`, which is permanent and 302s to a freshly signed file.
   See `toDurableTrack` in `services/MusicSources.ts`.
 
-### Pass 2 — Downloads
+### Pass 2 — Downloads — **DONE** (except offline detection, see below)
 
-- [ ] "Save offline" action, shown **only** when `audiodownload_allowed` is true — hide,
-      do not disable, so ineligible tracks feel intentional
-- [ ] Download via `expo-file-system` v19 (`File`/`Directory` API; note `StorageService`
-      uses the `/legacy` import — do not confuse the two)
-- [ ] Progress UI + cancel
-- [ ] Download registry (§5.4) and local-path resolution in `loadTrack()`
-- [ ] Downloads screen: what is stored, storage used, delete individually / all
-- [ ] Non-downloaded remote tracks visibly disabled when offline
-- [ ] **No bulk download and no auto-caching** — see the ToS constraint in §3
+- [x] "Save offline" action, shown **only** when `audiodownload_allowed` is true — hidden,
+      not disabled — `components/music/DownloadButton.tsx`
+- [x] Download with progress and cancel — `services/DownloadService.ts`. Uses
+      `createDownloadResumable` from `expo-file-system/legacy`, not the new `File` API:
+      the new API's `downloadFileAsync` has no progress callback and no cancel. The legacy
+      import is the same package and is what `StorageService` already uses.
+- [x] Download registry (§5.4) and local-path resolution — **in `MusicService.loadTrack`**,
+      deliberately, so auto-advance and next/previous resolve the local file too. Putting
+      it at the tap site would have made offline playback silently stream on advance.
+- [x] Downloads screen — `app/downloads.tsx`, reached from the Playlists tab: storage
+      used, delete individually, delete all
+- [x] Registry self-heals on hydrate: entries whose file the OS has reclaimed are dropped,
+      rather than failing at playback time
+- [x] No bulk download and no auto-caching — see the ToS constraint in §3.
+      **Keep it that way.**
+
+**Deferred: offline detection.** Disabling non-downloaded tracks when there is no network
+needs `expo-network` or NetInfo — a new native dependency, and §2 says defer it. Today a
+stream failure surfaces as an error with a retry rather than being pre-empted. Revisit only
+if the UX genuinely needs connectivity state *before* making a request.
 
 ### Pass 3 — Discover, artists, smart shuffle
 
