@@ -9,6 +9,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { MusicTrack, PlaybackState } from '../types/MusicTypes';
 import { makeTrackId } from '../utils/trackId';
+import { downloadService } from './DownloadService';
 
 /** Android 13 (API 33) is where POST_NOTIFICATIONS became a runtime permission. */
 const ANDROID_TIRAMISU = 33;
@@ -409,7 +410,11 @@ class MusicService {
     const token = ++this.loadToken;
 
     try {
-      const player = this.acquirePlayer({ uri: track.uri });
+      // Prefer an offline copy. This lives here rather than at the tap site so
+      // that auto-advance and next/previous get it too — those load tracks
+      // without going back through the UI.
+      const localUri = downloadService.localUriFor(track.id);
+      const player = this.acquirePlayer({ uri: localUri ?? track.uri });
 
       // A newer load started while this one was in flight — abandon this one.
       if (token !== this.loadToken) return;
@@ -422,9 +427,10 @@ class MusicService {
       this.playbackState.duration = track.duration;
       this.playbackState.position = 0;
       // Assume a streamed track is buffering until the first status tick says
-      // otherwise. Local files load effectively instantly, so claiming they
-      // buffer would just flash a spinner on every tap.
-      this.playbackState.isBuffering = track.source !== 'local';
+      // otherwise. Files on disk load effectively instantly, so claiming they
+      // buffer would just flash a spinner on every tap — and a downloaded
+      // track is a file on disk regardless of where it came from.
+      this.playbackState.isBuffering = track.source !== 'local' && !localUri;
 
       // Publish now-playing info to the lock screen / notification shade.
       player.setActiveForLockScreen(

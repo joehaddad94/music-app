@@ -39,6 +39,15 @@ jest.mock('expo-audio', () => ({
   setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
+/** Controls whether a given track is treated as downloaded. */
+const mockLocalUris = new Map<string, string>();
+
+jest.mock('../DownloadService', () => ({
+  downloadService: {
+    localUriFor: (trackId: string) => mockLocalUris.get(trackId),
+  },
+}));
+
 jest.mock('expo-media-library', () => ({
   requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   getAssetsAsync: jest.fn().mockResolvedValue({ assets: [] }),
@@ -94,6 +103,7 @@ describe('MusicService', () => {
     jest.clearAllMocks();
     mockPlayerRef.current = createMockPlayer();
     mockStatusListenerRef.current = null;
+    mockLocalUris.clear();
     (global as any).__DEV__ = true;
 
     mediaLibrary = require('expo-media-library');
@@ -101,6 +111,70 @@ describe('MusicService', () => {
     mediaLibrary.getAssetsAsync.mockResolvedValue({ assets: [] });
 
     service = require('../MusicService').musicService;
+  });
+
+  describe('downloaded tracks', () => {
+    const streamed = (): MusicTrack => ({
+      id: 'jamendo:1593988',
+      source: 'jamendo',
+      title: 'Lofi Chillout Hip Hop Beat',
+      artist: 'Joystock',
+      duration: 149000,
+      uri: 'https://api.jamendo.com/v3.0/tracks/file/?id=1593988',
+    });
+
+    it('plays the file on disk instead of streaming it', async () => {
+      const track = streamed();
+      mockLocalUris.set(track.id, 'file:///docs/downloads/jamendo-1593988.mp3');
+
+      await service.loadTrack(track);
+
+      const audio = require('expo-audio');
+      expect(audio.createAudioPlayer).toHaveBeenCalledWith(
+        { uri: 'file:///docs/downloads/jamendo-1593988.mp3' },
+        expect.anything()
+      );
+    });
+
+    it('streams when there is no local copy', async () => {
+      const track = streamed();
+
+      await service.loadTrack(track);
+
+      const audio = require('expo-audio');
+      expect(audio.createAudioPlayer).toHaveBeenCalledWith({ uri: track.uri }, expect.anything());
+    });
+
+    it('resolves the local copy on auto-advance too, not just on a tap', async () => {
+      // Advancing loads tracks without passing through the UI, so resolution
+      // has to live in the service or offline playback silently streams.
+      const first = streamed();
+      const second: MusicTrack = { ...streamed(), id: 'jamendo:2', title: 'Second' };
+      mockLocalUris.set(second.id, 'file:///docs/downloads/jamendo-2.mp3');
+
+      service.setQueue([first, second], 0, first);
+      await service.loadTrack(first);
+      await service.playNext();
+
+      expect(mockPlayerRef.current.replace).toHaveBeenCalledWith({
+        uri: 'file:///docs/downloads/jamendo-2.mp3',
+      });
+    });
+
+    it('does not claim to be buffering when playing from disk', async () => {
+      const track = streamed();
+      mockLocalUris.set(track.id, 'file:///docs/downloads/jamendo-1593988.mp3');
+
+      await service.loadTrack(track);
+
+      expect(service.getPlaybackState().isBuffering).toBe(false);
+    });
+
+    it('assumes buffering when the track has to be streamed', async () => {
+      await service.loadTrack(streamed());
+
+      expect(service.getPlaybackState().isBuffering).toBe(true);
+    });
   });
 
   describe('shuffle queue anchoring', () => {
