@@ -47,6 +47,7 @@ const initialPlaybackState: PlaybackState = {
   queue: [],
   currentIndex: -1,
   originalQueue: [],
+  recommendedTrackIds: [],
 };
 
 // Fields that, when changed, should trigger a re-render of the wider UI.

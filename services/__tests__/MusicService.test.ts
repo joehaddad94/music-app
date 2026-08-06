@@ -424,6 +424,35 @@ describe('MusicService', () => {
       expect(smart.recommendationsFor).not.toHaveBeenCalled();
     });
 
+    it('marks which tracks it added, so the queue can say they were recommended', async () => {
+      const queue = jamendoTracks(4);
+      service.setQueue(queue, 0, queue[0]);
+      await service.loadTrack(queue[0]);
+
+      mockRecommendations.push({ ...queue[0], id: 'jamendo:suggested' });
+
+      service.setShuffleMode('smart');
+      await flush();
+
+      const state = service.getPlaybackState();
+      expect(state.recommendedTrackIds).toEqual(['jamendo:suggested']);
+      // The user's own tracks must never be labelled as recommendations.
+      queue.forEach(track => expect(state.recommendedTrackIds).not.toContain(track.id));
+    });
+
+    it('forgets the markings when a new queue replaces the old one', async () => {
+      const queue = jamendoTracks(3);
+      service.setQueue(queue, 0, queue[0]);
+      await service.loadTrack(queue[0]);
+      mockRecommendations.push({ ...queue[0], id: 'jamendo:suggested' });
+      service.setShuffleMode('smart');
+      await flush();
+
+      service.setQueue(makeTracks(3), 0);
+
+      expect(service.getPlaybackState().recommendedTrackIds).toEqual([]);
+    });
+
     it('keeps playing when the recommendation lookup fails', async () => {
       const queue = jamendoTracks(3);
       service.setQueue(queue, 0, queue[0]);

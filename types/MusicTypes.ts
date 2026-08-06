@@ -52,6 +52,12 @@ export interface PlaybackState {
   queue: MusicTrack[];
   currentIndex: number;
   originalQueue: MusicTrack[]; // For shuffle mode
+  /**
+   * Ids of tracks smart shuffle added rather than the user. The queue view
+   * marks these, so an app quietly inserting music is legible instead of
+   * mysterious.
+   */
+  recommendedTrackIds: string[];
 }
 
 export interface Playlist {

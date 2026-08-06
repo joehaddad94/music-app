@@ -85,6 +85,7 @@ class MusicService {
     queue: [],
     currentIndex: -1,
     originalQueue: [],
+    recommendedTrackIds: [],
   };
   private listeners: ((state: PlaybackState) => void)[] = [];
 
@@ -230,6 +231,8 @@ class MusicService {
     this.playbackState.queue = tracks;
     this.playbackState.originalQueue = [...tracks];
     this.playbackState.currentIndex = startIndex;
+    // A new queue is entirely the user's choice until smart shuffle adds to it.
+    this.playbackState.recommendedTrackIds = [];
 
     if (this.playbackState.shuffleMode !== 'off') {
       this.shuffleQueue(anchorTrack ?? tracks[startIndex] ?? this.playbackState.currentTrack);
@@ -360,6 +363,12 @@ class MusicService {
         fresh,
         this.playbackState.currentIndex
       );
+      // Remember which entries the app chose rather than the user, so the
+      // queue can say so.
+      this.playbackState.recommendedTrackIds = [
+        ...this.playbackState.recommendedTrackIds,
+        ...fresh.map(track => track.id),
+      ];
       this.notifyListeners();
     } catch (error) {
       // A failed refill is not a playback failure — the existing queue plays on.
