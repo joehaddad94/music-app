@@ -1,3 +1,4 @@
+import MiniPlayer from '@/components/music/MiniPlayer';
 import TrackRow, { TRACK_ITEM_HEIGHT } from '@/components/music/TrackRow';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -111,6 +112,8 @@ export default function DownloadsScreen() {
           index,
         })}
       />
+
+      <MiniPlayer />
     </ThemedView>
   );
 }

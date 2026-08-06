@@ -1,5 +1,5 @@
 import { SourceCredit } from '@/components/music/Attribution';
-import MusicPlayer from '@/components/music/MusicPlayer';
+import MiniPlayer, { MINI_PLAYER_HEIGHT } from '@/components/music/MiniPlayer';
 import TrackRow, { TRACK_ITEM_HEIGHT } from '@/components/music/TrackRow';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -116,11 +116,7 @@ export default function ArtistScreen() {
         />
       )}
 
-      {playbackState.currentTrack && (
-        <ThemedView style={[styles.player, { borderTopColor: colors.border }]}>
-          <MusicPlayer />
-        </ThemedView>
-      )}
+      <MiniPlayer />
     </ThemedView>
   );
 }
@@ -133,7 +129,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   listWithPlayer: {
-    paddingBottom: 240,
+    paddingBottom: MINI_PLAYER_HEIGHT + 20,
   },
   state: {
     alignItems: 'center',
@@ -155,12 +151,5 @@ const styles = StyleSheet.create({
   retryText: {
     color: 'white',
     fontWeight: '600',
-  },
-  player: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopWidth: 1,
   },
 });

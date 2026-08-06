@@ -1,5 +1,5 @@
 import { SourceCredit } from '@/components/music/Attribution';
-import MusicPlayer from '@/components/music/MusicPlayer';
+import MiniPlayer, { MINI_PLAYER_HEIGHT } from '@/components/music/MiniPlayer';
 import SearchBar from '@/components/music/SearchBar';
 import TrackRow, { TRACK_ITEM_HEIGHT } from '@/components/music/TrackRow';
 import { ThemedText } from '@/components/ThemedText';
@@ -178,19 +178,7 @@ export default function DiscoverScreen() {
         />
       )}
 
-      {playbackState.currentTrack && (
-        <ThemedView
-          style={[
-            styles.playerContainer,
-            {
-              borderTopColor: colors.border,
-              backgroundColor: colorScheme === 'dark' ? colors.background : 'rgba(255,255,255,0.98)',
-            },
-          ]}
-        >
-          <MusicPlayer />
-        </ThemedView>
-      )}
+      <MiniPlayer />
     </SafeAreaView>
   );
 }
@@ -249,7 +237,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   listContentWithPlayer: {
-    paddingBottom: 240,
+    paddingBottom: MINI_PLAYER_HEIGHT + 20,
   },
   stateContainer: {
     alignItems: 'center',
@@ -275,17 +263,5 @@ const styles = StyleSheet.create({
   },
   footerSpinner: {
     marginVertical: 16,
-  },
-  playerContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
   },
 });

@@ -1,5 +1,6 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import MiniPlayer from '@/components/music/MiniPlayer';
 import TextPromptModal from '@/components/music/TextPromptModal';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Colors } from '@/constants/Colors';
@@ -247,6 +248,8 @@ export default function PlaylistsScreen() {
           </TouchableOpacity>
         </ThemedView>
       </ScrollView>
+
+      <MiniPlayer />
 
       <TextPromptModal
         visible={creating}

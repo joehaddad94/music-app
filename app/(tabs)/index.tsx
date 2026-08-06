@@ -1,6 +1,6 @@
 import ErrorBanner from '@/components/music/ErrorBanner';
+import MiniPlayer from '@/components/music/MiniPlayer';
 import MusicLibrary from '@/components/music/MusicLibrary';
-import MusicPlayer from '@/components/music/MusicPlayer';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
@@ -31,14 +31,7 @@ export default function LibraryScreen() {
         <MusicLibrary hasPlayer={!!playbackState.currentTrack} />
       </ThemedView>
 
-      {playbackState.currentTrack && (
-        <ThemedView style={[styles.playerContainer, {
-          borderTopColor: colors.border,
-          backgroundColor: colorScheme === 'dark' ? colors.background : 'rgba(255,255,255,0.98)'
-        }]}>
-          <MusicPlayer />
-        </ThemedView>
-      )}
+      <MiniPlayer />
     </SafeAreaView>
   );
 }
@@ -59,21 +52,5 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  playerContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderTopWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
   },
 });
