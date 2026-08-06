@@ -245,10 +245,18 @@ Ends with: search Jamendo, tap a result, it plays.
 - [x] Network error handling + retry
 - [x] Attribution — `components/music/Attribution.tsx`
 
-**Not yet done in Pass 1:** nothing has run against the live API, because that needs a
-`client_id`. Until then the response mapping is written against the documented field names
-only. First thing to check with a real key: that `shareurl` is populated (it carries the
-mandatory backlink) and that `audiodownload_allowed` behaves as documented.
+**Verified against the live API on 2026-08-06** (sample of 200 popular tracks plus
+targeted queries):
+
+- `shareurl` and `license_ccurl` were populated on 200/200 tracks — attribution is safe.
+- 4/200 tracks had `audiodownload_allowed: false`, and their `audiodownload` was an empty
+  string exactly as documented. Roughly 2% of the catalogue, so Pass 2's UI will meet this.
+- `namesearch`, `fuzzytags` and the stream endpoint all behave as documented. The stream
+  URL serves real audio (HTTP 206, `audio/mpeg`, ID3 header).
+- **The `audio` field is a pre-signed URL whose token is regenerated on every request** —
+  two calls for the same track return different `from=` tokens. Anything persisted must
+  therefore use `/tracks/file/`, which is permanent and 302s to a freshly signed file.
+  See `toDurableTrack` in `services/MusicSources.ts`.
 
 ### Pass 2 — Downloads
 
@@ -346,12 +354,12 @@ Network calls should be mocked; do not hit the live API from tests (quota, flaki
 
 ## 11. Open questions
 
-1. **Live API verification** — Pass 1 is written against the documented response shape and
-   tested against mocks. It has never received a real Jamendo response. Needs a
-   `client_id` in `.env`, then: does `shareurl` come back populated (the backlink is
-   contractually required), and does `audiodownload_allowed` behave as documented?
-2. **Device testing** — nothing on this branch has run on hardware. Background audio, lock
-   screen controls and streamed playback all need a real device.
-3. **Hook tests** — `useRemoteSearch` (debounce, abort, paging) is untested. Testing it
+1. **Device testing** — nothing on this branch has run on hardware. Background audio, lock
+   screen controls and streamed playback all need a real device. The API responses are
+   verified; the playback of them is not.
+2. **Hook tests** — `useRemoteSearch` (debounce, abort, paging) is untested. Testing it
    needs `@testing-library/react-native`, which is a new dependency and so a deliberate
    decision rather than something to add in passing.
+3. **Cached-track playback cost** — a persisted track now streams via `/tracks/file/`,
+   which spends one API request per play. Negligible against 35,000/month, but if a future
+   feature replays cached tracks in bulk, revisit it.

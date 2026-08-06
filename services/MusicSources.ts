@@ -1,5 +1,6 @@
-import { TrackSource } from '../types/MusicTypes';
-import { JamendoClient, TrackPage } from './JamendoClient';
+import { MusicTrack, TrackSource } from '../types/MusicTypes';
+import { JamendoClient, TrackPage, streamUrlFor } from './JamendoClient';
+import { nativeIdOf } from '../utils/trackId';
 
 /**
  * A browsable catalogue of tracks somewhere on the network.
@@ -37,6 +38,24 @@ export const jamendoSource: RemoteMusicSource = {
 };
 
 export const remoteSources: RemoteMusicSource[] = [jamendoSource];
+
+/**
+ * Rewrites a track into a form that is safe to store.
+ *
+ * Jamendo hands out pre-signed stream URLs whose token is regenerated on every
+ * request, so persisting one produces a favourite that plays today and fails
+ * next week. Anything we keep gets the permanent redirect endpoint instead.
+ * Local files are already durable and pass through untouched.
+ */
+export const toDurableTrack = (track: MusicTrack): MusicTrack => {
+  if (track.source !== 'jamendo') return track;
+  try {
+    return { ...track, uri: streamUrlFor(nativeIdOf(track.id)) };
+  } catch {
+    // Unconfigured client: keep the original URL rather than losing the track.
+    return track;
+  }
+};
 
 /** Genre tags offered as browse shortcuts on the Discover tab. */
 export const BROWSE_TAGS = [

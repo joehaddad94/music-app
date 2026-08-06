@@ -4,6 +4,7 @@ import {
   PLAYLISTS_KEY,
   loadAndMigrateLibrary,
 } from '../services/LibraryMigrations';
+import { toDurableTrack } from '../services/MusicSources';
 import { StorageService } from '../services/StorageService';
 import { MusicTrack, Playlist } from '../types/MusicTypes';
 
@@ -83,10 +84,14 @@ export const LibraryProvider: React.FC<{ children: ReactNode }> = ({ children })
   /**
    * Local tracks are deliberately not cached: they come back on every scan,
    * so storing them would duplicate the library for no benefit.
+   *
+   * Remote tracks are stored in durable form — their stream URLs are signed
+   * and expire, so what we keep has to be a permanently resolvable address.
    */
   const remember = useCallback((track: MusicTrack) => {
     if (track.source === 'local') return;
-    setKnownTracks(prev => (prev[track.id] ? prev : { ...prev, [track.id]: track }));
+    const durable = toDurableTrack(track);
+    setKnownTracks(prev => (prev[durable.id] ? prev : { ...prev, [durable.id]: durable }));
   }, []);
 
   const isFavorite = useCallback(

@@ -173,6 +173,19 @@ describe('requests', () => {
     await expect(JamendoClient.popularTracks()).rejects.toMatchObject({ name: 'AbortError' });
   });
 
+  it('builds a stable stream url that does not embed a signed token', () => {
+    // The `audio` field carries a signature regenerated on every request, so
+    // a stored favourite pointing at one would eventually stop playing. This
+    // endpoint is permanent and redirects to a freshly signed file.
+    const url = JamendoClient.streamUrlFor('1234');
+
+    expect(url).toContain('/tracks/file/');
+    expect(url).toContain('id=1234');
+    expect(url).toContain('audioformat=mp32');
+    expect(url).toContain('action=stream');
+    expect(url).not.toContain('from=');
+  });
+
   it('reports whether more pages may exist', async () => {
     mockFetch.mockReturnValue(respondWith([payload()]));
 

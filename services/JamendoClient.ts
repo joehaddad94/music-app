@@ -205,8 +205,33 @@ const toPage = (payload: JamendoTrackPayload[], limit: number): TrackPage => ({
   hasMore: payload.length >= limit,
 });
 
+/**
+ * A stable stream URL for a track.
+ *
+ * The `audio` field in a search response is a pre-signed URL carrying a token
+ * that is regenerated on every request, so it cannot be stored — a favourite
+ * played back a week later would be pointing at a stale signature. This
+ * endpoint is permanent and 302s to a freshly signed file on each request,
+ * and both ExoPlayer and AVPlayer follow the redirect.
+ *
+ * Only used for tracks we persist: a fresh search result plays its signed URL
+ * directly, which costs no extra request.
+ */
+export const streamUrlFor = (nativeId: string): string => {
+  const clientId = getClientId();
+  if (!clientId) throw new JamendoConfigError();
+  const query = new URLSearchParams({
+    client_id: clientId,
+    id: nativeId,
+    audioformat: AUDIO_FORMAT,
+    action: 'stream',
+  });
+  return `${API_BASE}/tracks/file/?${query.toString()}`;
+};
+
 export const JamendoClient = {
   isConfigured,
+  streamUrlFor,
 
   /** Free-text search across track names. */
   async searchTracks(query: string, page = 0, signal?: AbortSignal): Promise<TrackPage> {
