@@ -48,6 +48,28 @@ jest.mock('../DownloadService', () => ({
   },
 }));
 
+/** Recommendations smart shuffle will receive, and an optional failure. */
+const mockRecommendations: any[] = [];
+const mockRecommendationError: { current: Error | null } = { current: null };
+
+jest.mock('../SmartShuffle', () => {
+  const actual = jest.requireActual('../SmartShuffle');
+  return {
+    // The interleaving is real logic worth exercising; only the network is faked.
+    interleave: actual.interleave,
+    smartShuffle: {
+      recommendationsFor: jest.fn(async () => {
+        if (mockRecommendationError.current) throw mockRecommendationError.current;
+        return mockRecommendations;
+      }),
+    },
+  };
+});
+
+jest.mock('../RecentlyPlayed', () => ({
+  recentlyPlayed: { record: jest.fn().mockResolvedValue(undefined) },
+}));
+
 jest.mock('expo-media-library', () => ({
   requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   getAssetsAsync: jest.fn().mockResolvedValue({ assets: [] }),
@@ -104,6 +126,8 @@ describe('MusicService', () => {
     mockPlayerRef.current = createMockPlayer();
     mockStatusListenerRef.current = null;
     mockLocalUris.clear();
+    mockRecommendations.length = 0;
+    mockRecommendationError.current = null;
     (global as any).__DEV__ = true;
 
     mediaLibrary = require('expo-media-library');
@@ -225,9 +249,114 @@ describe('MusicService', () => {
       service.toggleShuffle();
 
       const state = service.getPlaybackState();
-      expect(state.shuffleMode).toBe(false);
+      expect(state.shuffleMode).toBe('off');
       expect(state.queue.map(t => t.id)).toEqual(tracks.map(t => t.id));
       expect(state.queue[state.currentIndex].id).toBe(tracks[5].id);
+    });
+  });
+
+  describe('smart shuffle', () => {
+    const jamendoTracks = (count: number): MusicTrack[] =>
+      Array.from({ length: count }, (_, i) => ({
+        id: `jamendo:${i}`,
+        source: 'jamendo' as const,
+        title: `Remote ${i}`,
+        artist: `Remote Artist ${i}`,
+        duration: 180000,
+        uri: `https://api.jamendo.com/v3.0/tracks/file/?id=${i}`,
+      }));
+
+    it('is not offered for a local-only queue', () => {
+      service.setQueue(makeTracks(5), 0);
+
+      expect(service.canSmartShuffle()).toBe(false);
+    });
+
+    it('is offered once the queue holds something that can seed it', () => {
+      service.setQueue([...makeTracks(3), ...jamendoTracks(1)], 0);
+
+      expect(service.canSmartShuffle()).toBe(true);
+    });
+
+    it('skips smart when cycling a local-only queue, rather than offering a dead mode', () => {
+      service.setQueue(makeTracks(5), 0);
+
+      service.cycleShuffleMode();
+      expect(service.getPlaybackState().shuffleMode).toBe('on');
+
+      service.cycleShuffleMode();
+      expect(service.getPlaybackState().shuffleMode).toBe('off');
+    });
+
+    it('cycles through smart when the queue can seed it', () => {
+      service.setQueue(jamendoTracks(5), 0);
+
+      service.cycleShuffleMode();
+      expect(service.getPlaybackState().shuffleMode).toBe('on');
+
+      service.cycleShuffleMode();
+      expect(service.getPlaybackState().shuffleMode).toBe('smart');
+
+      service.cycleShuffleMode();
+      expect(service.getPlaybackState().shuffleMode).toBe('off');
+    });
+
+    it('degrades smart to plain shuffle when a local-only queue replaces the old one', async () => {
+      service.setQueue(jamendoTracks(5), 0);
+      service.setShuffleMode('smart');
+      await flush();
+
+      service.setQueue(makeTracks(5), 0);
+
+      expect(service.getPlaybackState().shuffleMode).toBe('on');
+    });
+
+    it('appends recommendations without disturbing what is playing', async () => {
+      const queue = jamendoTracks(4);
+      service.setQueue(queue, 0, queue[0]);
+      await service.loadTrack(queue[0]);
+
+      mockRecommendations.push(
+        ...jamendoTracks(2).map((track, i) => ({ ...track, id: `jamendo:new-${i}` }))
+      );
+
+      service.setShuffleMode('smart');
+      await flush();
+
+      const state = service.getPlaybackState();
+      expect(state.queue).toHaveLength(6);
+      // The track that was playing is still the one at currentIndex.
+      expect(state.queue[state.currentIndex].id).toBe(queue[0].id);
+    });
+
+    it('never queues a recommendation that is already in the queue', async () => {
+      const queue = jamendoTracks(4);
+      service.setQueue(queue, 0, queue[0]);
+      await service.loadTrack(queue[0]);
+
+      mockRecommendations.push(queue[2], { ...queue[0], id: 'jamendo:fresh' });
+
+      service.setShuffleMode('smart');
+      await flush();
+
+      const ids = service.getPlaybackState().queue.map(t => t.id);
+      expect(ids.filter(id => id === queue[2].id)).toHaveLength(1);
+      expect(ids).toContain('jamendo:fresh');
+    });
+
+    it('keeps playing when the recommendation lookup fails', async () => {
+      const queue = jamendoTracks(3);
+      service.setQueue(queue, 0, queue[0]);
+      await service.loadTrack(queue[0]);
+
+      mockRecommendationError.current = new Error('network down');
+
+      service.setShuffleMode('smart');
+      await flush();
+
+      // Degraded, not broken: the existing queue survives intact.
+      expect(service.getPlaybackState().queue).toHaveLength(3);
+      expect(service.getPlaybackState().shuffleMode).toBe('smart');
     });
   });
 

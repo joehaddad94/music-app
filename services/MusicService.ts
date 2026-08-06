@@ -7,9 +7,11 @@ import {
 } from 'expo-audio';
 import * as MediaLibrary from 'expo-media-library';
 import { PermissionsAndroid, Platform } from 'react-native';
-import { MusicTrack, PlaybackState } from '../types/MusicTypes';
+import { MusicTrack, PlaybackState, ShuffleMode } from '../types/MusicTypes';
 import { makeTrackId } from '../utils/trackId';
 import { downloadService } from './DownloadService';
+import { recentlyPlayed } from './RecentlyPlayed';
+import { interleave, smartShuffle } from './SmartShuffle';
 
 /** Android 13 (API 33) is where POST_NOTIFICATIONS became a runtime permission. */
 const ANDROID_TIRAMISU = 33;
@@ -55,6 +57,9 @@ class MusicService {
   /** Guards against a duplicate `didJustFinish` double-advancing the queue. */
   private advancing = false;
 
+  /** Guards against overlapping smart-shuffle refills. */
+  private refilling = false;
+
   /** Ensures the Android notification permission is only ever prompted once. */
   private notificationPermissionRequested = false;
 
@@ -68,7 +73,7 @@ class MusicService {
     duration: 0,
     volume: 1.0,
     repeatMode: 'none',
-    shuffleMode: false,
+    shuffleMode: 'off',
     queue: [],
     currentIndex: -1,
     originalQueue: [],
@@ -218,11 +223,21 @@ class MusicService {
     this.playbackState.originalQueue = [...tracks];
     this.playbackState.currentIndex = startIndex;
 
-    if (this.playbackState.shuffleMode) {
+    if (this.playbackState.shuffleMode !== 'off') {
       this.shuffleQueue(anchorTrack ?? tracks[startIndex] ?? this.playbackState.currentTrack);
     }
 
+    // A new queue may have no seedable track, in which case smart shuffle
+    // silently degrades to plain shuffle rather than pretending to work.
+    if (this.playbackState.shuffleMode === 'smart' && !this.canSmartShuffle()) {
+      this.playbackState.shuffleMode = 'on';
+    }
+
     this.notifyListeners();
+
+    if (this.playbackState.shuffleMode === 'smart') {
+      void this.extendQueueWithRecommendations();
+    }
   }
 
   private shuffleArray<T>(array: T[]): T[] {
@@ -265,16 +280,97 @@ class MusicService {
     }
   }
 
-  toggleShuffle(): void {
-    this.playbackState.shuffleMode = !this.playbackState.shuffleMode;
+  /**
+   * True when the queue contains something a recommendation can be seeded
+   * from. Local files have no id the catalogue would recognise, so a
+   * local-only queue never offers smart shuffle rather than offering it and
+   * quietly doing nothing.
+   */
+  canSmartShuffle(): boolean {
+    return this.playbackState.originalQueue.some(track => track.source === 'jamendo');
+  }
 
-    if (this.playbackState.shuffleMode) {
-      this.shuffleQueue(this.playbackState.currentTrack);
-    } else {
+  /** off → on → smart → off, skipping smart when nothing in the queue can seed it. */
+  cycleShuffleMode(): void {
+    const order: ShuffleMode[] = this.canSmartShuffle()
+      ? ['off', 'on', 'smart']
+      : ['off', 'on'];
+    const next = order[(order.indexOf(this.playbackState.shuffleMode) + 1) % order.length];
+    this.setShuffleMode(next);
+  }
+
+  setShuffleMode(mode: ShuffleMode): void {
+    // Guard against smart being set on a queue that cannot seed it.
+    const resolved: ShuffleMode = mode === 'smart' && !this.canSmartShuffle() ? 'on' : mode;
+    this.playbackState.shuffleMode = resolved;
+
+    if (resolved === 'off') {
       this.unshuffleQueue();
+    } else {
+      this.shuffleQueue(this.playbackState.currentTrack);
     }
 
     this.notifyListeners();
+
+    if (resolved === 'smart') {
+      void this.extendQueueWithRecommendations();
+    }
+  }
+
+  /** Kept for callers that only need on/off. */
+  toggleShuffle(): void {
+    this.setShuffleMode(this.playbackState.shuffleMode === 'off' ? 'on' : 'off');
+  }
+
+  /**
+   * Appends recommendations seeded by the most recent Jamendo track,
+   * interleaved so the queue still feels like the user's own.
+   *
+   * Deliberately additive: it never reorders or removes what is already
+   * queued, so turning smart shuffle on cannot lose the thing you were about
+   * to hear.
+   */
+  private async extendQueueWithRecommendations(): Promise<void> {
+    if (this.playbackState.shuffleMode !== 'smart') return;
+    if (this.refilling) return;
+
+    const seed = this.seedTrack();
+    if (!seed) return;
+
+    this.refilling = true;
+    try {
+      const suggestions = await smartShuffle.recommendationsFor(seed);
+      // The mode may have been turned off while the request was in flight.
+      if (this.playbackState.shuffleMode !== 'smart') return;
+
+      const known = new Set(this.playbackState.queue.map(track => track.id));
+      const fresh = suggestions.filter(track => !known.has(track.id));
+      if (fresh.length === 0) return;
+
+      this.playbackState.queue = interleave(
+        this.playbackState.queue,
+        fresh,
+        this.playbackState.currentIndex
+      );
+      this.notifyListeners();
+    } catch (error) {
+      // A failed refill is not a playback failure — the existing queue plays on.
+      console.warn('Smart shuffle could not extend the queue:', error);
+    } finally {
+      this.refilling = false;
+    }
+  }
+
+  /** The most recently played track that a recommendation can be seeded from. */
+  private seedTrack(): MusicTrack | null {
+    const current = this.playbackState.currentTrack;
+    if (current?.source === 'jamendo') return current;
+    return (
+      [...this.playbackState.queue]
+        .slice(0, Math.max(0, this.playbackState.currentIndex) + 1)
+        .reverse()
+        .find(track => track.source === 'jamendo') ?? null
+    );
   }
 
   setRepeatMode(mode: 'none' | 'one' | 'all'): void {
@@ -445,6 +541,9 @@ class MusicService {
       );
 
       this.notifyListeners();
+
+      // Fire-and-forget: a failure to record history must never stop playback.
+      void recentlyPlayed.record(track).catch(() => {});
     } catch (error) {
       console.error('Failed to load track:', error);
       throw error instanceof Error ? error : new Error('Failed to load track');

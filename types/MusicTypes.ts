@@ -15,6 +15,8 @@ export interface MusicTrack {
   duration: number;
   uri: string;
   albumArt?: string;
+  /** Native artist id on the source platform, for "more by this artist". */
+  artistId?: string;
   /**
    * The track's page on the source platform. Jamendo's API terms require a
    * direct backlink from each track in the app to its Jamendo page, so this
@@ -46,7 +48,7 @@ export interface PlaybackState {
   duration: number;
   volume: number;
   repeatMode: 'none' | 'one' | 'all';
-  shuffleMode: boolean;
+  shuffleMode: ShuffleMode;
   queue: MusicTrack[];
   currentIndex: number;
   originalQueue: MusicTrack[]; // For shuffle mode
@@ -58,6 +60,13 @@ export interface Playlist {
   trackIds: string[];
   createdAt: number; // epoch ms, JSON-friendly for persistence
 }
+
+/**
+ * `smart` extends the queue with recommendations seeded from the current
+ * track. It is only ever offered when the queue holds a track that can seed
+ * one — a local file has no id the recommendation API would recognise.
+ */
+export type ShuffleMode = 'off' | 'on' | 'smart';
 
 export type RepeatMode = 'none' | 'one' | 'all';
 export type SortOption = 'title' | 'artist' | 'album' | 'duration';

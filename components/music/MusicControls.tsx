@@ -26,9 +26,19 @@ const MusicControls: React.FC = memo(() => {
     return playbackState.repeatMode !== 'none' ? colors.playingIndicator : colors.icon;
   };
 
+  const shuffleMode = playbackState.shuffleMode;
+
   const getShuffleColor = () => {
-    return playbackState.shuffleMode ? colors.playingIndicator : colors.icon;
+    if (shuffleMode === 'smart') return colors.accent;
+    return shuffleMode === 'on' ? colors.playingIndicator : colors.icon;
   };
+
+  const shuffleLabel =
+    shuffleMode === 'smart'
+      ? 'Smart shuffle on, adding similar tracks'
+      : shuffleMode === 'on'
+        ? 'Shuffle on'
+        : 'Shuffle off';
 
   return (
     <ThemedView style={styles.container}>
@@ -39,14 +49,22 @@ const MusicControls: React.FC = memo(() => {
           onPress={handleShuffle}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityState={{ selected: playbackState.shuffleMode }}
-          accessibilityLabel={playbackState.shuffleMode ? 'Shuffle on' : 'Shuffle off'}
+          accessibilityState={{ selected: shuffleMode !== 'off' }}
+          accessibilityLabel={shuffleLabel}
         >
-          <IconSymbol
-            size={24}
-            name="shuffle"
-            color={getShuffleColor()}
-          />
+          <View>
+            <IconSymbol
+              size={24}
+              name="shuffle"
+              color={getShuffleColor()}
+            />
+            {/* A dot rather than a second icon: smart shuffle is still
+                shuffle, and swapping the glyph would read as a different
+                control rather than a stronger version of the same one. */}
+            {shuffleMode === 'smart' && (
+              <View style={[styles.smartDot, { backgroundColor: colors.accent }]} />
+            )}
+          </View>
         </TouchableOpacity>
 
         {/* Previous Button */}
@@ -138,6 +156,14 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  smartDot: {
+    position: 'absolute',
+    top: -2,
+    right: -3,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
   playButton: {
     padding: 16,
