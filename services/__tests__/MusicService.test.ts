@@ -372,6 +372,58 @@ describe('MusicService', () => {
       expect(ids).toContain('jamendo:fresh');
     });
 
+    it('tops the queue up as it drains, rather than adding one batch and stopping', async () => {
+      // Regression: the refill was only triggered by changing mode or queue, so
+      // smart shuffle went quiet once the first batch had played.
+      const queue = jamendoTracks(6);
+      service.setQueue(queue, 0, queue[0]);
+      await service.loadTrack(queue[0]);
+      service.setShuffleMode('smart');
+      await flush();
+
+      const smart = require('../SmartShuffle').smartShuffle;
+      const callsAfterEnabling = smart.recommendationsFor.mock.calls.length;
+
+      // Advance until only a few tracks remain ahead of the current one.
+      mockRecommendations.push({ ...queue[0], id: 'jamendo:topup' });
+      await service.playNext();
+      await flush();
+
+      expect(smart.recommendationsFor.mock.calls.length).toBeGreaterThan(callsAfterEnabling);
+      expect(service.getPlaybackState().queue.map(t => t.id)).toContain('jamendo:topup');
+    });
+
+    it('does not refill while there is still plenty queued', async () => {
+      const queue = jamendoTracks(30);
+      service.setQueue(queue, 0, queue[0]);
+      await service.loadTrack(queue[0]);
+      service.setShuffleMode('smart');
+      await flush();
+
+      const smart = require('../SmartShuffle').smartShuffle;
+      const before = smart.recommendationsFor.mock.calls.length;
+
+      await service.playNext();
+      await flush();
+
+      // Requests are metered; spending one per track would be wasteful.
+      expect(smart.recommendationsFor.mock.calls.length).toBe(before);
+    });
+
+    it('does not refill when smart shuffle is off', async () => {
+      const queue = jamendoTracks(2);
+      service.setQueue(queue, 0, queue[0]);
+      await service.loadTrack(queue[0]);
+
+      const smart = require('../SmartShuffle').smartShuffle;
+      smart.recommendationsFor.mockClear();
+
+      await service.playNext();
+      await flush();
+
+      expect(smart.recommendationsFor).not.toHaveBeenCalled();
+    });
+
     it('keeps playing when the recommendation lookup fails', async () => {
       const queue = jamendoTracks(3);
       service.setQueue(queue, 0, queue[0]);

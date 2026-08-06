@@ -17,6 +17,14 @@ import { interleave, smartShuffle } from './SmartShuffle';
 const ANDROID_TIRAMISU = 33;
 
 /**
+ * Refill smart shuffle once this few tracks remain. Far enough ahead that the
+ * request finishes before the queue runs dry, close enough that a listener who
+ * stops after a couple of tracks has not spent requests on music they will
+ * never hear.
+ */
+const SMART_REFILL_THRESHOLD = 5;
+
+/**
  * Result of a library scan. `notice` carries a non-fatal, user-facing
  * explanation (permission denied, sample data in use) so the UI can say what
  * happened instead of silently substituting fake tracks.
@@ -385,6 +393,16 @@ class MusicService {
 
   async playNext(): Promise<void> {
     if (this.playbackState.queue.length === 0) return;
+
+    // Top the queue up before it runs out, so smart shuffle keeps discovering
+    // instead of appending one batch and going quiet. Fire-and-forget: the
+    // refill must never delay the track that is about to play.
+    if (this.playbackState.shuffleMode === 'smart') {
+      const remaining = this.playbackState.queue.length - this.playbackState.currentIndex - 1;
+      if (remaining <= SMART_REFILL_THRESHOLD) {
+        void this.extendQueueWithRecommendations();
+      }
+    }
 
     let nextIndex = this.playbackState.currentIndex + 1;
 
