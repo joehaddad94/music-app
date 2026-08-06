@@ -8,6 +8,7 @@ import {
 import * as MediaLibrary from 'expo-media-library';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { MusicTrack, PlaybackState } from '../types/MusicTypes';
+import { makeTrackId } from '../utils/trackId';
 
 /** Android 13 (API 33) is where POST_NOTIFICATIONS became a runtime permission. */
 const ANDROID_TIRAMISU = 33;
@@ -60,6 +61,7 @@ class MusicService {
 
   private playbackState: PlaybackState = {
     isPlaying: false,
+    isBuffering: false,
     currentTrack: null,
     position: 0,
     duration: 0,
@@ -97,72 +99,28 @@ class MusicService {
     // Sample tracks used only in development when the media library is
     // unavailable (for example, running in Expo Go without a dev build).
     // These stream from the network and are never shown in a release build.
-    return [
-      {
-        id: 'mock-1',
-        title: 'Summer Breeze',
-        artist: 'The Relaxers',
-        album: 'Chill Vibes Vol. 1',
-        duration: 234000,
-        uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-      },
-      {
-        id: 'mock-2',
-        title: 'Electric Dreams',
-        artist: 'Synth Masters',
-        album: 'Digital Waves',
-        duration: 198000,
-        uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-      },
-      {
-        id: 'mock-3',
-        title: 'Midnight Jazz',
-        artist: 'Cool Cats Quartet',
-        album: 'Late Night Sessions',
-        duration: 267000,
-        uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-      },
-      {
-        id: 'mock-4',
-        title: 'Mountain Echo',
-        artist: 'Nature Sounds',
-        album: 'Peaceful Landscapes',
-        duration: 312000,
-        uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-      },
-      {
-        id: 'mock-5',
-        title: 'Urban Rhythm',
-        artist: 'City Beats',
-        album: 'Street Life',
-        duration: 189000,
-        uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
-      },
-      {
-        id: 'mock-6',
-        title: 'Ocean Waves',
-        artist: 'Ambient Collective',
-        album: 'Serenity',
-        duration: 276000,
-        uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
-      },
-      {
-        id: 'mock-7',
-        title: 'Rock Anthem',
-        artist: 'The Thunder',
-        album: 'Greatest Hits',
-        duration: 243000,
-        uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3',
-      },
-      {
-        id: 'mock-8',
-        title: 'Classical Suite',
-        artist: 'Orchestra Ensemble',
-        album: 'Timeless Classics',
-        duration: 298000,
-        uri: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
-      },
+    const samples: [title: string, artist: string, album: string, durationMs: number][] = [
+      ['Summer Breeze', 'The Relaxers', 'Chill Vibes Vol. 1', 234000],
+      ['Electric Dreams', 'Synth Masters', 'Digital Waves', 198000],
+      ['Midnight Jazz', 'Cool Cats Quartet', 'Late Night Sessions', 267000],
+      ['Mountain Echo', 'Nature Sounds', 'Peaceful Landscapes', 312000],
+      ['Urban Rhythm', 'City Beats', 'Street Life', 189000],
+      ['Ocean Waves', 'Ambient Collective', 'Serenity', 276000],
+      ['Rock Anthem', 'The Thunder', 'Greatest Hits', 243000],
+      ['Classical Suite', 'Orchestra Ensemble', 'Timeless Classics', 298000],
     ];
+
+    // Tagged as `local` because they stand in for the device library, not for
+    // a streaming source — the Discover tab is where remote tracks come from.
+    return samples.map(([title, artist, album, duration], index) => ({
+      id: makeTrackId('local', `mock-${index + 1}`),
+      source: 'local' as const,
+      title,
+      artist,
+      album,
+      duration,
+      uri: `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-${index + 1}.mp3`,
+    }));
   }
 
   async requestPermissions(): Promise<boolean> {
@@ -230,7 +188,8 @@ class MusicService {
     // (thousands on a large library) and queried the photo album bucket,
     // which never matches audio anyway. The UI falls back to a note icon.
     const tracks: MusicTrack[] = audioAssets.map(asset => ({
-      id: asset.id,
+      id: makeTrackId('local', asset.id),
+      source: 'local',
       title: asset.filename.replace(/\.[^/.]+$/, ''),
       artist: 'Unknown Artist',
       album: 'Unknown Album',
@@ -396,6 +355,11 @@ class MusicService {
 
     this.playbackState.isPlaying = status.playing;
 
+    // Treat "not loaded yet" as buffering too: on a streamed track the gap
+    // between tapping and the first sample is the part that needs a spinner,
+    // and `isBuffering` alone doesn't cover the initial fetch.
+    this.playbackState.isBuffering = status.isBuffering || !status.isLoaded;
+
     // `loop` covers repeat-one natively, so only advance when not looping.
     if (status.didJustFinish && !status.loop) {
       void this.handleTrackFinished();
@@ -457,6 +421,10 @@ class MusicService {
       this.playbackState.currentTrack = track;
       this.playbackState.duration = track.duration;
       this.playbackState.position = 0;
+      // Assume a streamed track is buffering until the first status tick says
+      // otherwise. Local files load effectively instantly, so claiming they
+      // buffer would just flash a spinner on every tap.
+      this.playbackState.isBuffering = track.source !== 'local';
 
       // Publish now-playing info to the lock screen / notification shade.
       player.setActiveForLockScreen(
@@ -525,6 +493,7 @@ class MusicService {
     }
 
     this.playbackState.isPlaying = false;
+    this.playbackState.isBuffering = false;
     this.playbackState.currentTrack = null;
     this.playbackState.position = 0;
     this.playbackState.duration = 0;

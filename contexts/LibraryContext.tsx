@@ -1,20 +1,30 @@
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  FAVORITES_KEY,
+  PLAYLISTS_KEY,
+  loadAndMigrateLibrary,
+} from '../services/LibraryMigrations';
 import { StorageService } from '../services/StorageService';
-import { Playlist } from '../types/MusicTypes';
+import { MusicTrack, Playlist } from '../types/MusicTypes';
 
-const FAVORITES_KEY = 'favorites';
-const PLAYLISTS_KEY = 'playlists';
+const KNOWN_TRACKS_KEY = 'knownTracks';
 
 interface LibraryContextType {
   ready: boolean;
   favorites: string[];
   playlists: Playlist[];
   isFavorite: (trackId: string) => boolean;
-  toggleFavorite: (trackId: string) => void;
+  toggleFavorite: (track: MusicTrack) => void;
   createPlaylist: (name: string) => Playlist;
   deletePlaylist: (playlistId: string) => void;
-  addToPlaylist: (playlistId: string, trackId: string) => void;
+  addToPlaylist: (playlistId: string, track: MusicTrack) => void;
   removeFromPlaylist: (playlistId: string, trackId: string) => void;
+  /**
+   * Metadata for a referenced track that isn't in the on-device library.
+   * Favorites and playlists persist ids only, which is fine for local files
+   * (always re-scannable) but leaves a streamed track unreconstructable.
+   */
+  getKnownTrack: (trackId: string) => MusicTrack | undefined;
 }
 
 const LibraryContext = createContext<LibraryContextType | undefined>(undefined);
@@ -24,19 +34,21 @@ const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 export const LibraryProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [knownTracks, setKnownTracks] = useState<Record<string, MusicTrack>>({});
   const [ready, setReady] = useState(false);
 
-  // Load persisted data once on mount.
+  // Load persisted data once on mount, migrating it if an older schema wrote it.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [favs, lists] = await Promise.all([
-        StorageService.load<string[]>(FAVORITES_KEY, []),
-        StorageService.load<Playlist[]>(PLAYLISTS_KEY, []),
+      const [library, cached] = await Promise.all([
+        loadAndMigrateLibrary(),
+        StorageService.load<Record<string, MusicTrack>>(KNOWN_TRACKS_KEY, {}),
       ]);
       if (!cancelled) {
-        setFavorites(favs);
-        setPlaylists(lists);
+        setFavorites(library.favorites);
+        setPlaylists(library.playlists);
+        setKnownTracks(cached);
         setReady(true);
       }
     })();
@@ -57,16 +69,37 @@ export const LibraryProvider: React.FC<{ children: ReactNode }> = ({ children })
     StorageService.save(PLAYLISTS_KEY, playlists);
   }, [playlists, ready]);
 
+  // Only keep metadata for tracks something still points at, so the cache
+  // can't grow without bound as playlists come and go.
+  useEffect(() => {
+    if (!ready) return;
+    const referenced = new Set([...favorites, ...playlists.flatMap(p => p.trackIds)]);
+    const pruned = Object.fromEntries(
+      Object.entries(knownTracks).filter(([id]) => referenced.has(id))
+    );
+    StorageService.save(KNOWN_TRACKS_KEY, pruned);
+  }, [knownTracks, favorites, playlists, ready]);
+
+  /**
+   * Local tracks are deliberately not cached: they come back on every scan,
+   * so storing them would duplicate the library for no benefit.
+   */
+  const remember = useCallback((track: MusicTrack) => {
+    if (track.source === 'local') return;
+    setKnownTracks(prev => (prev[track.id] ? prev : { ...prev, [track.id]: track }));
+  }, []);
+
   const isFavorite = useCallback(
     (trackId: string) => favorites.includes(trackId),
     [favorites]
   );
 
-  const toggleFavorite = useCallback((trackId: string) => {
+  const toggleFavorite = useCallback((track: MusicTrack) => {
+    remember(track);
     setFavorites(prev =>
-      prev.includes(trackId) ? prev.filter(id => id !== trackId) : [...prev, trackId]
+      prev.includes(track.id) ? prev.filter(id => id !== track.id) : [...prev, track.id]
     );
-  }, []);
+  }, [remember]);
 
   const createPlaylist = useCallback((name: string) => {
     const playlist: Playlist = {
@@ -83,15 +116,16 @@ export const LibraryProvider: React.FC<{ children: ReactNode }> = ({ children })
     setPlaylists(prev => prev.filter(p => p.id !== playlistId));
   }, []);
 
-  const addToPlaylist = useCallback((playlistId: string, trackId: string) => {
+  const addToPlaylist = useCallback((playlistId: string, track: MusicTrack) => {
+    remember(track);
     setPlaylists(prev =>
       prev.map(p =>
-        p.id === playlistId && !p.trackIds.includes(trackId)
-          ? { ...p, trackIds: [...p.trackIds, trackId] }
+        p.id === playlistId && !p.trackIds.includes(track.id)
+          ? { ...p, trackIds: [...p.trackIds, track.id] }
           : p
       )
     );
-  }, []);
+  }, [remember]);
 
   const removeFromPlaylist = useCallback((playlistId: string, trackId: string) => {
     setPlaylists(prev =>
@@ -100,6 +134,11 @@ export const LibraryProvider: React.FC<{ children: ReactNode }> = ({ children })
       )
     );
   }, []);
+
+  const getKnownTrack = useCallback(
+    (trackId: string) => knownTracks[trackId],
+    [knownTracks]
+  );
 
   const value = useMemo<LibraryContextType>(() => ({
     ready,
@@ -111,7 +150,8 @@ export const LibraryProvider: React.FC<{ children: ReactNode }> = ({ children })
     deletePlaylist,
     addToPlaylist,
     removeFromPlaylist,
-  }), [ready, favorites, playlists, isFavorite, toggleFavorite, createPlaylist, deletePlaylist, addToPlaylist, removeFromPlaylist]);
+    getKnownTrack,
+  }), [ready, favorites, playlists, isFavorite, toggleFavorite, createPlaylist, deletePlaylist, addToPlaylist, removeFromPlaylist, getKnownTrack]);
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
 };

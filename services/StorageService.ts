@@ -37,4 +37,14 @@ export const StorageService = {
       console.warn(`StorageService: failed to save "${key}"`, error);
     }
   },
+
+  async remove(key: string): Promise<void> {
+    const path = pathFor(key);
+    if (!path) return;
+    try {
+      await FileSystem.deleteAsync(path, { idempotent: true });
+    } catch (error) {
+      console.warn(`StorageService: failed to remove "${key}"`, error);
+    }
+  },
 };

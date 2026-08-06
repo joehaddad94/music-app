@@ -1,5 +1,5 @@
 import React, { memo, useState } from 'react';
-import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { useLibrary } from '../../contexts/LibraryContext';
@@ -8,6 +8,7 @@ import { useMusicPlayerDisplay } from '../../hooks/useMusicPlayerDisplay';
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 import { IconSymbol } from '../ui/IconSymbol';
+import { TrackAttribution } from './Attribution';
 import MusicControls from './MusicControls';
 import PlaylistPickerModal from './PlaylistPickerModal';
 import ProgressBar from './ProgressBar';
@@ -52,6 +53,13 @@ const MusicPlayer: React.FC = memo(() => {
               color={colors.playingIndicator}
             />
           )}
+          {/* Streamed tracks aren't instant; silence with no indicator reads
+              as a broken player. Overlaid on the art so nothing reflows. */}
+          {playbackState.isBuffering && (
+            <View style={[styles.bufferingOverlay, { backgroundColor: colors.card + 'CC' }]}>
+              <ActivityIndicator color={colors.tint} />
+            </View>
+          )}
         </View>
 
         <View style={styles.trackDetails}>
@@ -71,7 +79,7 @@ const MusicPlayer: React.FC = memo(() => {
         <View style={styles.trackActions}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => toggleFavorite(currentTrack.id)}
+            onPress={() => toggleFavorite(currentTrack)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityState={{ selected: favorited }}
@@ -95,6 +103,8 @@ const MusicPlayer: React.FC = memo(() => {
         </View>
       </View>
 
+      <TrackAttribution track={currentTrack} />
+
       <ProgressBar />
 
       <VolumeSlider />
@@ -103,7 +113,7 @@ const MusicPlayer: React.FC = memo(() => {
 
       <PlaylistPickerModal
         visible={pickerOpen}
-        trackId={currentTrack.id}
+        track={currentTrack}
         onClose={() => setPickerOpen(false)}
       />
     </ThemedView>
@@ -134,6 +144,11 @@ const styles = StyleSheet.create({
   albumArt: {
     width: 80,
     height: 80,
+  },
+  bufferingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   trackDetails: {
     flex: 1,

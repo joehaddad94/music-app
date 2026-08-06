@@ -3,30 +3,36 @@ import { Modal, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedba
 import { Colors } from '../../constants/Colors';
 import { useLibrary } from '../../contexts/LibraryContext';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { MusicTrack } from '../../types/MusicTypes';
 import { ThemedText } from '../ThemedText';
 import { IconSymbol } from '../ui/IconSymbol';
 import TextPromptModal from './TextPromptModal';
 
 interface PlaylistPickerModalProps {
   visible: boolean;
-  trackId: string | null;
+  /**
+   * The whole track, not just its id: a playlist stores ids, and a streamed
+   * track's metadata has to be cached alongside or the entry can never be
+   * resolved back into something playable.
+   */
+  track: MusicTrack | null;
   onClose: () => void;
 }
 
-const PlaylistPickerModal: React.FC<PlaylistPickerModalProps> = memo(({ visible, trackId, onClose }) => {
+const PlaylistPickerModal: React.FC<PlaylistPickerModalProps> = memo(({ visible, track, onClose }) => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const { playlists, addToPlaylist, createPlaylist } = useLibrary();
   const [creating, setCreating] = useState(false);
 
   const handlePick = (playlistId: string) => {
-    if (trackId) addToPlaylist(playlistId, trackId);
+    if (track) addToPlaylist(playlistId, track);
     onClose();
   };
 
   const handleCreate = (name: string) => {
     const playlist = createPlaylist(name);
-    if (trackId) addToPlaylist(playlist.id, trackId);
+    if (track) addToPlaylist(playlist.id, track);
     setCreating(false);
     onClose();
   };
@@ -60,7 +66,7 @@ const PlaylistPickerModal: React.FC<PlaylistPickerModalProps> = memo(({ visible,
                   <ThemedText style={styles.empty}>No playlists yet. Create one above.</ThemedText>
                 ) : (
                   playlists.map(playlist => {
-                    const alreadyIn = trackId ? playlist.trackIds.includes(trackId) : false;
+                    const alreadyIn = track ? playlist.trackIds.includes(track.id) : false;
                     return (
                       <TouchableOpacity
                         key={playlist.id}

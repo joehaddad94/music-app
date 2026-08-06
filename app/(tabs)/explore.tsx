@@ -16,13 +16,17 @@ export default function PlaylistsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const { tracks, playTrack } = useMusic();
-  const { favorites, playlists, createPlaylist, deletePlaylist } = useLibrary();
+  const { favorites, playlists, createPlaylist, deletePlaylist, getKnownTrack } = useLibrary();
   const [creating, setCreating] = useState(false);
 
   const trackMap = useMemo(() => new Map(tracks.map(t => [t.id, t])), [tracks]);
 
+  // The on-device library first, then cached metadata for anything streamed —
+  // a Jamendo track in a playlist isn't in `tracks` and would otherwise vanish.
   const resolve = (ids: string[]): MusicTrack[] =>
-    ids.map(id => trackMap.get(id)).filter((t): t is MusicTrack => Boolean(t));
+    ids
+      .map(id => trackMap.get(id) ?? getKnownTrack(id))
+      .filter((t): t is MusicTrack => Boolean(t));
 
   const playQueue = (queue: MusicTrack[]) => {
     if (queue.length === 0) return;

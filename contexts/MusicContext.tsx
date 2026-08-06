@@ -35,6 +35,7 @@ interface MusicProviderProps {
 
 const initialPlaybackState: PlaybackState = {
   isPlaying: false,
+  isBuffering: false,
   currentTrack: null,
   position: 0,
   duration: 0,
@@ -54,6 +55,7 @@ const initialPlaybackState: PlaybackState = {
 // while dragging and nothing else renders from it.
 const metaChanged = (a: PlaybackState, b: PlaybackState): boolean =>
   a.isPlaying !== b.isPlaying ||
+  a.isBuffering !== b.isBuffering ||
   a.currentTrack?.id !== b.currentTrack?.id ||
   a.duration !== b.duration ||
   a.repeatMode !== b.repeatMode ||

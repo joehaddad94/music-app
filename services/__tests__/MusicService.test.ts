@@ -56,7 +56,8 @@ jest.mock('react-native', () => ({
 
 const makeTracks = (count: number): MusicTrack[] =>
   Array.from({ length: count }, (_, i) => ({
-    id: `track-${i}`,
+    id: `local:track-${i}`,
+    source: 'local' as const,
     title: `Track ${i}`,
     artist: `Artist ${i}`,
     album: `Album ${i}`,
@@ -372,7 +373,14 @@ describe('MusicService', () => {
       const result = await service.scanMusicFiles();
 
       expect(result.tracks).toHaveLength(1);
-      expect(result.tracks[0]).toMatchObject({ id: 'a1', title: 'Song One', duration: 210000 });
+      expect(result.tracks[0]).toMatchObject({
+        // Namespaced, so a MediaLibrary asset id can never collide with a
+        // Jamendo track id in persisted favorites or playlists.
+        id: 'local:a1',
+        source: 'local',
+        title: 'Song One',
+        duration: 210000,
+      });
       expect(result.notice).toBeNull();
     });
 
