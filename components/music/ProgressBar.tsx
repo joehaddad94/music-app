@@ -14,6 +14,7 @@ const ProgressBar: React.FC = memo(() => {
     isDragging,
     localPosition,
     handleSeek,
+    handleSeekPreview,
     handleSeekStart,
     handleSeekEnd,
     formatTime
@@ -21,16 +22,19 @@ const ProgressBar: React.FC = memo(() => {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
+  // Fires continuously as the thumb moves. Updating the preview here is what
+  // makes the elapsed-time label track the drag.
   const handleValueChange = (value: number) => {
-    handleSeekStart();
+    handleSeekPreview(value * duration);
   };
 
-  const handleSlidingComplete = async (value: number) => {
-    const newPosition = value * duration;
-    handleSeek(newPosition);
+  const handleSlidingComplete = (value: number) => {
+    handleSeek(value * duration);
     handleSeekEnd();
   };
 
+  // While dragging this equals the slider's own value, so feeding it back is a
+  // no-op rather than a fight with the thumb.
   const currentPosition = duration > 0
     ? (isDragging ? localPosition : position) / duration
     : 0;
@@ -51,12 +55,15 @@ const ProgressBar: React.FC = memo(() => {
           style={styles.slider}
           minimumValue={0}
           maximumValue={1}
-          value={isDragging ? undefined : currentPosition}
+          value={currentPosition}
+          onSlidingStart={handleSeekStart}
           onValueChange={handleValueChange}
           onSlidingComplete={handleSlidingComplete}
+          disabled={duration <= 0}
           minimumTrackTintColor={colors.progressBar}
           maximumTrackTintColor={colors.progressBarBackground}
           thumbTintColor={colors.progressBar}
+          accessibilityLabel="Playback position"
         />
       </View>
     </ThemedView>
@@ -84,23 +91,6 @@ const styles = StyleSheet.create({
   },
   slider: {
     height: 20,
-  },
-  track: {
-    height: 4,
-    borderRadius: 2,
-  },
-  thumb: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
 });
 
