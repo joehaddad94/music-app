@@ -14,9 +14,12 @@ git branch --show-current          # expect: fix/expo-audio-migration
 npm install
 npm run typecheck                  # expect: exit 0
 npx eslint .                       # expect: exit 0, zero warnings
-npm test                           # expect: 30/30 passing, 2 suites
+npm test                           # expect: 61/61 passing, 5 suites
 npx expo-doctor                    # expect: 17/17
 ```
+
+Discover needs a Jamendo `client_id`: copy `.env.example` to `.env` and fill it in, then
+restart the bundler. Without it the tab renders a configuration message instead of tracks.
 
 If all five pass, the tree is in the state this document describes and you can start at
 §6, Pass 1.
@@ -223,25 +226,29 @@ the download feature and is a small change in one place.
 
 Each pass is independently shippable. Commit granularly, as on this branch.
 
-### Pass 1 — Foundation, search, streaming
+### Pass 1 — Foundation, search, streaming — **DONE** (unverified against the live API)
 
-Ends with: search Jamendo, tap a result, it plays. Proves the whole thing before investing
-in downloads.
+Ends with: search Jamendo, tap a result, it plays.
 
-- [ ] `MusicTrack.source` + ID namespacing + persisted-data migration (§5.1)
-- [ ] Track metadata cache (§5.2)
-- [ ] `services/JamendoClient.ts` — `client_id` from env, `audioformat=mp32`, mapping to
+- [x] `MusicTrack.source` + ID namespacing + persisted-data migration (§5.1) —
+      `utils/trackId.ts`, `services/LibraryMigrations.ts`
+- [x] Track metadata cache (§5.2) — in `contexts/LibraryContext.tsx`, pruned to what
+      favorites and playlists reference
+- [x] `services/JamendoClient.ts` — `client_id` from env, `audioformat=mp32`, mapping to
       `MusicTrack`, pagination, typed errors
-- [ ] Response caching with TTL through `StorageService` (quota-driven, see §7)
-- [ ] `MusicSource` abstraction (§5.3)
-- [ ] Discover tab in `app/(tabs)/_layout.tsx` (third tab)
-- [ ] Remote search UI — debounced (**mandatory**, see §7), paginated, with loading /
-      empty / error states. `SearchBar` exists but filters locally today
-- [ ] Buffering state in player + mini player (`AudioStatus` carries it). Local files load
-      instantly so there is no spinner today; remote playback without one feels broken
-- [ ] Network error handling + retry, including mid-track stream failure
-- [ ] **Attribution component** — artist credit, "provided by Jamendo", per-track backlink
-      (§3). Cheap now, painful to retrofit
+- [x] Response caching with TTL (6h) through `StorageService`
+- [x] `RemoteMusicSource` abstraction — `services/MusicSources.ts`
+- [x] Discover tab — `app/(tabs)/discover.tsx`, third tab
+- [x] Remote search UI — `hooks/useRemoteSearch.ts`, debounced 400ms, paginated,
+      abortable, with loading / empty / error states
+- [x] Buffering state in the player (`PlaybackState.isBuffering`, spinner over the artwork)
+- [x] Network error handling + retry
+- [x] Attribution — `components/music/Attribution.tsx`
+
+**Not yet done in Pass 1:** nothing has run against the live API, because that needs a
+`client_id`. Until then the response mapping is written against the documented field names
+only. First thing to check with a real key: that `shareurl` is populated (it carries the
+mandatory backlink) and that `audiodownload_allowed` behaves as documented.
 
 ### Pass 2 — Downloads
 
@@ -339,8 +346,12 @@ Network calls should be mocked; do not hit the live API from tests (quota, flaki
 
 ## 11. Open questions
 
-1. **Backlink field name** — confirm which `/tracks` response field holds the track's
-   Jamendo page URL (§3). Blocks the attribution component.
-2. **Device testing** — nothing on this branch has run on hardware. Background audio and
-   lock screen controls need a real device before Jamendo work is considered done.
-3. **Push** — the branch is local only. Pushing needs Joe's explicit go-ahead.
+1. **Live API verification** — Pass 1 is written against the documented response shape and
+   tested against mocks. It has never received a real Jamendo response. Needs a
+   `client_id` in `.env`, then: does `shareurl` come back populated (the backlink is
+   contractually required), and does `audiodownload_allowed` behave as documented?
+2. **Device testing** — nothing on this branch has run on hardware. Background audio, lock
+   screen controls and streamed playback all need a real device.
+3. **Hook tests** — `useRemoteSearch` (debounce, abort, paging) is untested. Testing it
+   needs `@testing-library/react-native`, which is a new dependency and so a deliberate
+   decision rather than something to add in passing.
