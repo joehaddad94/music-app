@@ -14,7 +14,7 @@ git branch --show-current          # expect: fix/expo-audio-migration
 npm install
 npm run typecheck                  # expect: exit 0
 npx eslint .                       # expect: exit 0, zero warnings
-npm test                           # expect: 129/129 passing, 10 suites
+npm test                           # expect: 135/135 passing, 10 suites
 npx expo-doctor                    # expect: 17/17
 ```
 
@@ -397,6 +397,31 @@ Network calls should be mocked; do not hit the live API from tests (quota, flaki
 - Developer portal (client_id signup) — https://devportal.jamendo.com
 
 ---
+
+## 10a. Post-audit fixes (2026-08-06)
+
+A review after Pass 3 found two real bugs and a set of UX problems. All fixed:
+
+- **Downloads could silently stream.** The registry only hydrated when a screen using
+  `useDownloads` mounted, and the Library tab mounts none of them — so a cold start there
+  played a downloaded track from the network, and failed outright offline.
+  `MusicService.loadTrack` now awaits hydration itself rather than depending on which
+  screen the user opened first.
+- **Smart shuffle went inert after one batch**, because the refill was only triggered by
+  changing mode or queue. `playNext` now tops up when five tracks remain.
+- **The player could never be dismissed.** `stop()` existed from the beginning and nothing
+  called it. Replaced by a 64px mini bar (with a stop control) plus a full player at
+  `app/player.tsx`; `MusicPlayer` and `useMusicPlayerDisplay` are deleted.
+- **The queue was invisible** — bad once smart shuffle inserts tracks. `app/player.tsx`
+  has an Up Next view, and `PlaybackState.recommendedTrackIds` marks what the app added.
+- Track rows gained favourite/download/artist actions and a downloaded marker; offline
+  dimming now applies in the library, not only Discover; tab labels are back; the
+  artist page dropped its meaningless pagination; `canSmartShuffle` was deleted unused.
+
+**Known gap left deliberately:** the per-track Jamendo backlink appears in the player, and
+listings carry a listing-level credit. Their terms say "from each Content in the
+Application", which could be read as requiring one per row. Worth revisiting if this ever
+stops being a personal app.
 
 ## 11. Open questions
 
