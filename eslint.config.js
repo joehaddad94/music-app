@@ -5,6 +5,15 @@ const expoConfig = require('eslint-config-expo/flat');
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*'],
+    ignores: ['dist/*', 'android/*', 'ios/*'],
+  },
+  {
+    // Tests re-`require()` modules on purpose: the playback service is a
+    // singleton, so each case pairs `jest.resetModules()` with a fresh require
+    // to get isolated state. A static import would defeat that.
+    files: ['**/__tests__/**/*.ts', '**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
   },
 ]);
